@@ -59,6 +59,8 @@
    *  - amortizing: method 'equal' (mặc định) → gốc chia đều mỗi kỳ, lãi tính trên dư nợ giảm dần;
    *                method 'annuity' → tổng trả mỗi kỳ cố định (PMT).
    * Kỳ cuối của mọi loại được ghim vào Ngày đáo hạn nếu có.
+   * opts.anchorDue (ISO): một ngày đến hạn thật (vd. từ lịch hệ thống) → các kỳ khác lấy cùng ngày trong tháng;
+   * không có thì dùng ngày mở.
    */
   function buildSchedule(loan, opts) {
     opts = opts || {};
@@ -70,9 +72,11 @@
     var kind = loanKind(loan.termName);
     var r = (loan.rate || 0) / 100 / 12;
     var rows = [], bal = P, k, due, interest, principal;
+    var anchor = opts.anchorDue || null, kA = 0;
+    if (anchor) { var po = parseISO(loan.openDate), pa = parseISO(anchor); kA = (pa.y - po.y) * 12 + (pa.m - po.m); }
     var pmt = (r > 0) ? P * r / (1 - Math.pow(1 + r, -n)) : P / n;
     for (k = 1; k <= n; k++) {
-      due = (k === n && loan.maturityDate) ? loan.maturityDate : addMonths(loan.openDate, k);
+      due = (k === n && loan.maturityDate) ? loan.maturityDate : (anchor ? addMonths(anchor, k - kA) : addMonths(loan.openDate, k));
       interest = bal * r;
       if (kind === 'short') {
         principal = (k === n) ? bal : 0;

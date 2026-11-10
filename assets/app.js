@@ -122,7 +122,7 @@
   }
   function monthLabel(m) { return m ? m.slice(5) + '/' + m.slice(0, 4) : ''; }
 
-  function loadFile(file) {
+  function loadFile(file, expect) {
     if (!file) return;
     busy(true, 'Đang đọc ' + file.name + '…');
     var rd = new FileReader();
@@ -134,6 +134,11 @@
           var parsed = D.parseAny(window.XLSX, new Uint8Array(rd.result));
           parsed.fileName = file.name;
           parsed.updatedAt = new Date().toISOString();
+          if (expect && parsed.kind !== expect) {
+            throw new Error(parsed.kind === 'schedule'
+              ? 'Đây là file Lịch trả nợ hệ thống. Hãy nạp ở mục “Lịch trả nợ hệ thống”.'
+              : 'Đây là file Sao kê LD23. Hãy nạp ở mục “Sao kê LD23”.');
+          }
           if (parsed.kind === 'schedule') {
             if (!parsed.rows.length) throw new Error('File lịch trả nợ không có dòng dữ liệu nào.');
             if (!state.loans.length) throw new Error('Hãy nạp file sao kê LD23 trước, rồi mới nạp file lịch trả nợ.');
@@ -229,8 +234,9 @@
   }
 
   /* ---------- hiển thị danh sách ---------- */
+  function anchorOf(l) { var o = state.schedMap[l.id]; return o ? o.due : null; }
   function statusOf(l) {
-    var p = C.paymentSummary(l, state.reportDate, { method: state.method });
+    var p = C.paymentSummary(l, state.reportDate, { method: state.method, anchorDue: anchorOf(l) });
     var open = l.balance > 0 || l.relatedBalance > 0;
     if (!open) return { cls: 'gray', text: 'Đã tất toán', p: p };
     if (p.pastMaturity) return { cls: 'red', text: 'Quá hạn ' + p.overdueDays + ' ngày', p: p };
@@ -386,20 +392,21 @@
 
     // Lịch trả nợ
     if (sch.rows.length) {
+      if (off) sch.rows.forEach(function (x) { if (x.date === off.due) { x.principal = off.goc; x.interest = off.lai; x.total = off.tot; x.official = true; } });
       var rows = sch.rows, many = rows.length > 14 && !state.showAll;
       var next = p.nextRow ? p.nextRow.no : 0;
       var vis = rows;
       if (many) {
         vis = rows.filter(function (x) { return x.no <= 3 || (next && Math.abs(x.no - next) <= 4) || x.no > rows.length - 2; });
       }
-      h += '<section class="card"><div class="card-h"><h3>Lịch trả nợ theo hợp đồng</h3><span class="muted small">Tính trên số tiền vay ban đầu</span></div>' +
+      h += '<section class="card"><div class="card-h"><h3>Lịch trả nợ theo hợp đồng</h3><span class="muted small">' + (off ? 'Ngày trả theo lịch hệ thống · kỳ ✓ là số chính thức' : 'Ngày trả theo ngày mở · tính trên số tiền vay ban đầu') + '</span></div>' +
         '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Kỳ</th><th>Ngày</th><th class="num hide-s">Dư nợ đầu kỳ</th><th class="num">Gốc</th><th class="num">Lãi</th><th class="num">Tổng trả</th></tr></thead><tbody>';
       var last = 0;
       vis.forEach(function (x) {
         if (last && x.no - last > 1) h += '<tr class="gap"><td colspan="6">⋯ ' + (x.no - last - 1) + ' kỳ ẩn ⋯</td></tr>';
         last = x.no;
-        var cls = x.date < state.reportDate ? 'past' : (x.no === next ? 'next' : '');
-        h += '<tr class="' + cls + '"><td>' + x.no + '</td><td>' + fdate(x.date) + '</td><td class="num hide-s">' + nf0.format(x.opening) +
+        var cls = x.official ? 'official' : x.date < state.reportDate ? 'past' : (x.no === next ? 'next' : '');
+        h += '<tr class="' + cls + '"><td>' + x.no + (x.official ? ' ✓' : '') + '</td><td>' + fdate(x.date) + '</td><td class="num hide-s">' + nf0.format(x.opening) +
           '</td><td class="num">' + nf0.format(x.principal) + '</td><td class="num">' + nf0.format(x.interest) +
           '</td><td class="num"><b>' + nf0.format(x.total) + '</b></td></tr>';
       });
@@ -463,11 +470,21 @@
     if (e.key === 'Escape' && document.body.classList.contains('detail-open') && document.activeElement !== $('q')) { if (location.hash) history.back(); else closeDetail(); }
   });
 
-  var fileInput = $('file');
-  ['load-btn', 'pick-btn'].forEach(function (id) { $(id).addEventListener('click', function (e) { e.stopPropagation(); fileInput.click(); }); });
-  $('drop').addEventListener('click', function () { fileInput.click(); });
-  $('drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
-  fileInput.addEventListener('change', function () { loadFile(fileInput.files[0]); fileInput.value = ''; });
+  var inLd = $('file-ld23'), inSc = $('file-sched'), loadDlg = $('load-dlg');
+  function loadStatus() {
+    $('st-ld23').textContent = state.loans.length ? '✓ ' + (state.fileName || 'Đã nạp') + ' · ' + nf0.format(state.loans.length) + ' hợp đồng' : 'Chưa nạp';
+    $('st-sched').textContent = state.sched ? '✓ Tháng ' + monthLabel(state.sched.month) + ' · ' + nf0.format(state.sched.rows.length) + ' khoản' : (state.loans.length ? 'Chưa nạp' : 'Nạp Sao kê LD23 trước');
+    $('opt-sched').disabled = !state.loans.length;
+    $('opt-sched').style.opacity = state.loans.length ? '' : '.55';
+  }
+  $('load-btn').addEventListener('click', function () { loadStatus(); loadDlg.showModal(); });
+  $('opt-ld23').addEventListener('click', function () { loadDlg.close(); inLd.click(); });
+  $('opt-sched').addEventListener('click', function () { loadDlg.close(); inSc.click(); });
+  $('pick-btn').addEventListener('click', function (e) { e.stopPropagation(); inLd.click(); });
+  $('drop').addEventListener('click', function () { inLd.click(); });
+  $('drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inLd.click(); } });
+  inLd.addEventListener('change', function () { loadFile(inLd.files[0], 'loans'); inLd.value = ''; });
+  inSc.addEventListener('change', function () { loadFile(inSc.files[0], 'schedule'); inSc.value = ''; });
   ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.add('dragging'); }); });
   ['dragleave', 'drop'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); if (ev === 'drop' || e.target === document.documentElement || !e.relatedTarget) document.body.classList.remove('dragging'); }); });
   document.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });

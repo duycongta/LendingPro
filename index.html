@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#4f46e5">
   <title>LendingPro – Tra cứu khoản vay</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 22V10h3v9h8v3z' fill='white'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="assets/style.css?v=12">
+  <link rel="stylesheet" href="assets/style.css?v=13">
 </head>
 <body class="locked">
   <div id="lock" class="lock" hidden>
@@ -38,7 +38,7 @@
       <button id="settings-btn" class="btn ghost icon" type="button" title="Cài đặt đồng bộ GitHub" aria-label="Cài đặt đồng bộ GitHub">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.9 7.9 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.9 7.9 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
       </button>
-      <button id="load-btn" class="btn ghost" type="button" title="Nạp file sao kê khác">
+      <button id="load-btn" class="btn ghost" type="button" title="Nạp dữ liệu: sao kê LD23 hoặc lịch trả nợ hệ thống">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l4.5 4.5-1.4 1.4L13 6.8V16h-2V6.8L8.9 8.9 7.5 7.5 12 3zM5 14h2v5h10v-5h2v7H5v-7z"/></svg>
         <span>Nạp file</span>
       </button>
@@ -53,8 +53,8 @@
           <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 13h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>
         </div>
         <h1>Tra cứu khoản vay</h1>
-        <p>Kéo thả file sao kê <b>LD23 – Sao kê tín dụng</b> (.xlsx) vào đây hoặc bấm để chọn file.</p>
-        <button class="btn primary" type="button" id="pick-btn">Chọn file Excel</button>
+        <p>Bắt đầu bằng cách nạp file <b>Sao kê LD23</b> (.xlsx): kéo thả vào đây hoặc bấm nút bên dưới. Sau đó có thể nạp thêm <b>Lịch trả nợ hệ thống</b> ở nút <b>Nạp file</b> phía trên.</p>
+        <button class="btn primary" type="button" id="pick-btn">Nạp Sao kê LD23</button>
         <p class="privacy">🔒 File được xử lý ngay trên thiết bị của bạn, không tải lên máy chủ nào.</p>
       </div>
       <p id="welcome-error" class="error" role="alert" hidden></p>
@@ -96,13 +96,29 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" hidden></div>
-  <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
+  <dialog id="load-dlg" class="dlg">
+    <form method="dialog">
+      <h3>Nạp dữ liệu</h3>
+      <p class="muted small">Chọn đúng loại file. Mỗi loại có nút riêng.</p>
+      <button type="button" class="load-opt" id="opt-ld23">
+        <span class="load-ico a">1</span>
+        <span class="load-txt"><b>Sao kê LD23</b><small>Dữ liệu khoản vay chính (cột Hợp đồng chính, Mã khách hàng…)</small><em id="st-ld23"></em></span>
+      </button>
+      <button type="button" class="load-opt" id="opt-sched">
+        <span class="load-ico b">2</span>
+        <span class="load-txt"><b>Lịch trả nợ hệ thống</b><small>Gốc, lãi, tổng và ngày đến hạn chính thức của tháng (cột CONTRACT)</small><em id="st-sched"></em></span>
+      </button>
+      <div class="dlg-actions"><span></span><button class="btn ghost" value="cancel">Đóng</button></div>
+    </form>
+  </dialog>
+  <input type="file" id="file-ld23" accept=".xlsx,.xlsm,.xls" hidden>
+  <input type="file" id="file-sched" accept=".xlsx,.xlsm,.xls" hidden>
   <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">Đang đọc dữ liệu…</span></div>
 
-  <script src="assets/config.js?v=12"></script>
+  <script src="assets/config.js?v=13"></script>
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="assets/calc.js?v=12"></script>
-  <script src="assets/data.js?v=12"></script>
-  <script src="assets/app.js?v=12"></script>
+  <script src="assets/calc.js?v=13"></script>
+  <script src="assets/data.js?v=13"></script>
+  <script src="assets/app.js?v=13"></script>
 </body>
 </html>

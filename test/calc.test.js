@@ -81,3 +81,15 @@ test('số kỳ đã đến hạn suy từ Gốc phải trả', () => {
   // niên kim: không ra số nguyên → null
   assert.equal(C.dueFromPrincipal({ principal: 100e6, due: 31234567, term: '36', openDate: '2025-10-10', maturityDate: '2028-10-10' }), null);
 });
+
+test('ngày trả nợ theo ngày đến hạn của lịch hệ thống (anchorDue)', () => {
+  const loan = { principal: 120e6, balance: 120e6, rate: 12, term: '12', termName: 'NGANHAN', openDate: '2026-01-10', maturityDate: '2027-01-10' };
+  const s = C.buildSchedule(loan, { anchorDue: '2026-11-02' });
+  assert.equal(s.rows[0].date, '2026-02-02');            // kỳ 1: cùng ngày 02
+  assert.equal(s.rows[9].date, '2026-11-02');            // kỳ 10 = đúng ngày trong lịch hệ thống
+  assert.equal(s.rows[10].date, '2026-12-02');           // kỳ tiếp theo đổi theo
+  assert.equal(s.rows[11].date, '2027-01-10');           // kỳ cuối = ngày đáo hạn LD23
+  assert.equal(C.buildSchedule(loan).rows[0].date, '2026-02-10'); // không có lịch → ngày mở
+  const p = C.paymentSummary(loan, '2026-11-09', { anchorDue: '2026-11-02' });
+  assert.equal(p.nextDate, '2026-12-02');
+});
