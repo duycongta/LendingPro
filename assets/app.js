@@ -253,7 +253,8 @@
         '<span class="avatar">' + esc(initials(l.custName)) + '</span>' +
         '<span class="item-main"><span class="item-name">' + esc(l.custName) + '</span>' +
         '<span class="item-sub">' + esc(l.custId) + ' · ' + esc(l.id) + '</span>' +
-        '<span class="item-sub">' + esc(l.product || '—') + '</span></span>' +
+        '<span class="item-sub">' + esc(l.product || '—') + '</span>' +
+        '<span class="item-sub">CB bán: ' + esc(l.saleName || '—') + '</span></span>' +
         '<span class="item-side"><span class="item-amt">' + moneyShort(l.balance, l.currency) + '</span>' +
         '<span class="badge ' + st.cls + '">' + esc(st.text) + '</span></span></button></li>';
     });
