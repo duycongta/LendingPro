@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#4f46e5">
+  <title>LendingPro – Tra cứu khoản vay</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 22V10h3v9h8v3z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#" aria-label="LendingPro – trang chủ">
+        <span class="logo" aria-hidden="true">L</span>
+        <span class="brand-name">Lending<b>Pro</b></span>
+      </a>
+      <div class="search" role="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>
+        <input id="q" type="search" inputmode="search" autocomplete="off" spellcheck="false"
+               placeholder="Nhập họ tên, ID khách hàng hoặc mã hợp đồng…" aria-label="Tra cứu khoản vay" disabled>
+        <button id="clear" class="icon-btn" type="button" aria-label="Xóa tìm kiếm" hidden>✕</button>
+      </div>
+      <button id="load-btn" class="btn ghost" type="button" title="Nạp file sao kê khác">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l4.5 4.5-1.4 1.4L13 6.8V16h-2V6.8L8.9 8.9 7.5 7.5 12 3zM5 14h2v5h10v-5h2v7H5v-7z"/></svg>
+        <span>Nạp file</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="app" class="app">
+    <!-- Màn hình chào / nạp dữ liệu -->
+    <section id="welcome" class="welcome" hidden>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Chọn hoặc kéo thả file sao kê">
+        <div class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 13h8v2H8v-2zm0 4h8v2H8v-2z"/></svg>
+        </div>
+        <h1>Tra cứu khoản vay</h1>
+        <p>Kéo thả file sao kê <b>LD23 – Sao kê tín dụng</b> (.xlsx) vào đây hoặc bấm để chọn file.</p>
+        <button class="btn primary" type="button" id="pick-btn">Chọn file Excel</button>
+        <p class="privacy">🔒 File được xử lý ngay trên thiết bị của bạn, không tải lên máy chủ nào.</p>
+      </div>
+      <p id="welcome-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <!-- Màn hình tra cứu -->
+    <section id="workspace" class="workspace" hidden>
+      <div class="status-line" id="status-line"></div>
+      <div class="panes">
+        <aside class="list-pane" id="list-pane" aria-label="Kết quả tra cứu">
+          <div class="list-tools">
+            <div id="summary" class="summary"></div>
+            <label class="chip-toggle"><input type="checkbox" id="only-active"><span>Chỉ còn dư nợ</span></label>
+          </div>
+          <ul id="results" class="results"></ul>
+          <button id="more" class="btn ghost more" type="button" hidden></button>
+        </aside>
+        <article class="detail-pane" id="detail-pane" aria-live="polite">
+          <div class="placeholder" id="placeholder">
+            <div class="ph-art" aria-hidden="true">
+              <svg viewBox="0 0 64 64"><circle cx="28" cy="28" r="16" fill="none" stroke="currentColor" stroke-width="4"/><path d="M40 40l14 14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+            </div>
+            <p>Chọn một khoản vay ở danh sách bên trái để xem chi tiết.</p>
+          </div>
+          <div id="detail" hidden></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
+  <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">Đang đọc dữ liệu…</span></div>
+
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="assets/calc.js"></script>
+  <script src="assets/data.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

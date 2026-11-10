@@ -1,0 +1,7 @@
+# Dữ liệu khách hàng KHÔNG được đưa lên Git
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+data/
+node_modules/
