@@ -239,6 +239,8 @@
     var p = C.paymentSummary(l, state.reportDate, { method: state.method, anchorDue: anchorOf(l) });
     var open = l.balance > 0 || l.relatedBalance > 0;
     if (!open) return { cls: 'gray', text: 'Đã tất toán', p: p };
+    var so = state.schedMap[l.id];
+    if (so && so.odDays > 0) return { cls: 'red', text: 'Quá hạn ' + nf0.format(so.odDays) + ' ngày', p: p };
     if (p.pastMaturity) return { cls: 'red', text: 'Quá hạn ' + p.overdueDays + ' ngày', p: p };
     if (parseInt(l.debtGroup, 10) >= 2) return { cls: 'amber', text: 'Nhóm nợ ' + l.debtGroup, p: p };
     return { cls: 'green', text: 'Đang vay', p: p };
@@ -334,6 +336,7 @@
         '<div class="big">' + money(off.tot, cur) + '</div></div>' +
         '<div class="pay-split"><div><span>Gốc</span><b>' + money(off.goc, cur) + '</b></div>' +
         '<div><span>Lãi</span><b>' + money(off.lai, cur) + '</b></div></div></div>' +
+        (off.odDays > 0 ? '<p class="warn" style="margin-top:10px">⚠ Đang quá hạn <b>' + nf0.format(off.odDays) + ' ngày</b> (theo lịch trả nợ hệ thống).</p>' : '') +
         '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
     } else {
       h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag est">Ước tính</span></div>';
@@ -370,6 +373,7 @@
     // Thông tin chung
     h += '<section class="card"><h3>Thông tin khoản vay</h3><dl class="grid">' +
       kv('Mã HĐ chính', esc(l.id)) + kv('ID khách hàng', esc(l.custId)) +
+      (state.schedMap[l.id] ? kv('Số ngày quá hạn', state.schedMap[l.id].odDays > 0 ? '<span style="color:var(--red)">' + nf0.format(state.schedMap[l.id].odDays) + ' ngày</span>' : '0 ngày') : '') +
       kv('Ngày vay (ngày mở)', fdate(l.openDate)) + kv('Ngày kết thúc', fdate(l.maturityDate)) +
       kv('Gốc đến hạn lũy kế (cột P)', money(l.due, cur)) +
       kv('Gốc đã trả', money(totalPaid, cur) + (relPaid > 0 ? '<small class="sub">HĐ chính ' + money(l.paid, cur) + ' + khoản liên quan ' + money(relPaid, cur) + '</small>' : '')) +

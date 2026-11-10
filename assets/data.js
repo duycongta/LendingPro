@@ -115,7 +115,7 @@
   var SCOLS = {
     tk:    ['Số tài khoản của Khách hàng (TK)', 1], custId: ['ID KH', 4], goc: ['Số tiền gốc', 5], lai: ['Số tiền lãi', 6],
     due:   ['Ngày đến hạn thanh toán', 7], fee: ['Phí bảo hiểm', 8], tot: ['Tổng số tiền phải thanh toán', 9],
-    open:  ['Ngày mở', 19], bal: ['Gốc còn lại', 20], vay: ['Gốc vay', 21], contract: ['CONTRACT', 22]
+    open:  ['Ngày mở', 19], bal: ['Gốc còn lại', 20], vay: ['Gốc vay', 21], contract: ['CONTRACT', 22], odDays: ['Số ngày QH', 13]
   };
   function findScheduleHeader(aoa) {
     for (var i = 0; i < Math.min(aoa.length, 30); i++) {
@@ -136,7 +136,7 @@
       var due = toISO(r[idx.due]);
       if (!due) continue;
       rows.push({ tk: str(r[idx.tk]), custId: str(r[idx.custId]), open: toISO(r[idx.open]), vay: num(r[idx.vay]), bal: num(r[idx.bal]),
-                  contract: headers.indexOf('CONTRACT') >= 0 ? str(r[idx.contract]) : '', due: due, goc: num(r[idx.goc]), lai: num(r[idx.lai]), fee: num(r[idx.fee]), tot: num(r[idx.tot]) });
+                  odDays: Math.max(0, parseInt(r[idx.odDays], 10) || 0), contract: headers.indexOf('CONTRACT') >= 0 ? str(r[idx.contract]) : '', due: due, goc: num(r[idx.goc]), lai: num(r[idx.lai]), fee: num(r[idx.fee]), tot: num(r[idx.tot]) });
       months[due.slice(0, 7)] = (months[due.slice(0, 7)] || 0) + 1;
     }
     var month = Object.keys(months).sort(function (a, b) { return months[b] - months[a]; })[0] || '';
