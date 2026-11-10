@@ -130,6 +130,26 @@
     return out;
   }
 
+
+  /**
+   * Số kỳ đã đến hạn suy ra từ "Gốc phải trả" (cột P, cộng dồn gốc theo lịch):
+   * với khoản trả gốc đều, P = số kỳ đã đến hạn × (gốc vay ÷ số kỳ). Thử số kỳ theo ngày, theo cột Kì hạn và Kì hạn+1
+   * (cột Kì hạn trong LD23 hay thiếu 1 kỳ). Không khớp số nguyên (vd. niên kim) thì trả về null.
+   */
+  function dueFromPrincipal(loan) {
+    var P = loan.principal || 0, due = loan.due;
+    if (!(P > 0) || due == null || isNaN(due)) return null;
+    var cands = [], col = parseInt(loan.term, 10) || 0, i, n, g, q, k;
+    if (loan.openDate && loan.maturityDate) cands.push(Math.round(diffDays(loan.maturityDate, loan.openDate) / 30.4375));
+    if (col > 0) { cands.push(col); cands.push(col + 1); }
+    for (i = 0; i < cands.length; i++) {
+      n = cands[i]; if (!(n > 0)) continue;
+      g = P / n; q = due / g; k = Math.round(q);
+      if (Math.abs(q - k) < 0.02 && k >= 0 && k <= n) return { k: k, n: n };
+    }
+    return null;
+  }
+
   /* ---------- Tìm kiếm ---------- */
   function normalize(s) {
     return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -138,5 +158,5 @@
 
   return { addMonths: addMonths, diffDays: diffDays, excelSerialToISO: excelSerialToISO, loanKind: loanKind,
            termLabel: termLabel, termMonths: termMonths, buildSchedule: buildSchedule,
-           paymentSummary: paymentSummary, normalize: normalize };
+           paymentSummary: paymentSummary, dueFromPrincipal: dueFromPrincipal, normalize: normalize };
 });

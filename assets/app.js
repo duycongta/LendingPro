@@ -90,9 +90,9 @@
     var cust = {}, custOpen = {}, open = 0, bad = 0, total = 0, usd = 0;
     loans.forEach(function (l) {
       cust[l.custId] = 1;
-      if (l.balance > 0) {
+      if (l.balance + (l.relatedBalance || 0) > 0) {
         open++; custOpen[l.custId] = 1;
-        if (l.currency === 'VND') total += l.balance; else usd += l.balance;
+        if (l.currency === 'VND') total += l.balance + (l.relatedBalance || 0); else usd += l.balance + (l.relatedBalance || 0);
         if (parseInt(l.debtGroup, 10) >= 2) bad++;
       }
     });
@@ -253,7 +253,7 @@
     if (!state.query.trim()) summary = 'Danh sách tìm kiếm';
     else if (!res.length) summary = 'Không tìm thấy';
     else if (nc === 1 && state.query.trim()) {
-      var tot = res.reduce(function (s, l) { return s + l.balance; }, 0), cur = res[0].currency;
+      var tot = res.reduce(function (s, l) { return s + l.balance + (l.relatedBalance || 0); }, 0), cur = res[0].currency;
       summary = '<b>' + esc(res[0].custName) + '</b> · ' + res.length + ' khoản · Dư nợ ' + moneyShort(tot, cur);
     } else summary = nf0.format(res.length) + ' hợp đồng' + (state.query.trim() ? ' · ' + nc + ' khách hàng' : '');
     $('summary').innerHTML = summary;
@@ -278,7 +278,7 @@
         '<span class="item-sub">' + esc(l.custId) + ' · ' + esc(l.id) + '</span>' +
         '<span class="item-sub">' + esc(l.product || '—') + '</span>' +
         '<span class="item-sub">CB bán: ' + esc(l.saleName || '—') + '</span></span>' +
-        '<span class="item-side"><span class="item-amt">' + moneyShort(l.balance, l.currency) + '</span>' +
+        '<span class="item-side"><span class="item-amt">' + moneyShort(l.balance + (l.relatedBalance || 0), l.currency) + '</span>' +
         '<span class="badge ' + st.cls + '">' + esc(st.text) + '</span></span></button></li>';
     });
     list.innerHTML = html;
@@ -298,8 +298,11 @@
 
   function renderDetail(l) {
     var cur = l.currency, st = statusOf(l), p = st.p, sch = p.schedule;
-    var repaid = l.principal > 0 ? Math.max(0, Math.min(100, (l.principal - l.balance) / l.principal * 100)) : 0;
-    var kind = sch.kind, closed = !(l.balance > 0);
+    var relPaid = l.related.reduce(function (a, r) { return a + r.paid; }, 0), relBal = l.relatedBalance || 0;
+    var totalPaid = l.paid + relPaid, totalRemain = l.balance + relBal;
+    var repaid = l.principal > 0 ? Math.max(0, Math.min(100, totalPaid / l.principal * 100)) : 0;
+    var kind = sch.kind, closed = !(totalRemain > 0), mainDone = !(l.balance > 0) && relBal > 0;
+    var dueK = C.dueFromPrincipal(l);
     var kindText = kind === 'short' ? 'Trả lãi hàng tháng, gốc trả cuối kỳ' : 'Trả gốc + lãi hàng tháng theo dư nợ giảm dần';
     var h = '';
 
@@ -310,9 +313,9 @@
 
     h += '<div class="stats">' +
       '<div class="stat"><span>Số tiền vay</span><b>' + money(l.principal, cur) + '</b></div>' +
-      '<div class="stat accent"><span>Gốc còn lại</span><b>' + money(l.balance, cur) + '</b>' +
+      '<div class="stat accent"><span>Gốc còn lại</span><b>' + money(totalRemain, cur) + '</b>' +
       '<div class="bar" role="img" aria-label="Đã trả ' + nf0.format(repaid) + '% gốc"><i style="width:' + repaid.toFixed(1) + '%"></i></div>' +
-      '<small>Đã trả ' + nf0.format(repaid) + '% gốc</small></div>' +
+      '<small>Đã trả ' + nf0.format(repaid) + '% gốc' + (relBal > 0 ? ' · gồm quá hạn ' + moneyShort(relBal, cur) : '') + '</small></div>' +
       '<div class="stat"><span>Lãi suất</span><b>' + pct(l.rate) + '<em>/năm</em></b></div>' +
       '<div class="stat"><span>Kỳ hạn</span><b>' + (sch.months ? sch.months + ' tháng' : '—') + '</b><small>' + esc(C.termLabel(l.termName)) +
       (sch.derived ? ' · suy ra từ ngày mở/đáo hạn' : '') + '</small></div></div>';
@@ -337,6 +340,8 @@
       }
     if (!sch.rows.length) {
       h += '<p class="muted">Hợp đồng không có kỳ hạn / ngày đáo hạn rõ ràng (thẻ, hạn mức, thấu chi…) nên chưa tính được lịch trả nợ.</p>';
+    } else if (mainDone) {
+      h += '<p class="warn">Phần gốc của hợp đồng chính đã đến hạn hết. Còn nợ gốc quá hạn ở khoản liên quan: <b>' + money(relBal, cur) + '</b>.</p>';
     } else if (closed) {
       h += '<p class="muted">Hợp đồng không còn dư nợ gốc – không phát sinh khoản phải trả.</p>';
     } else if (p.pastMaturity) {
@@ -346,7 +351,7 @@
         '<div class="big">' + money(p.nextTotal, cur) + '</div></div>' +
         '<div class="pay-split"><div><span>Gốc</span><b>' + money(p.nextPrincipal, cur) + '</b></div>' +
         '<div><span>Lãi</span><b>' + money(p.nextInterest, cur) + '</b></div></div></div>';
-      h += '<p class="muted">' + kindText + '. Đã trả <b>' + p.paidPeriods + '</b> kỳ · Còn <b>' + p.remainingPeriods + '</b> kỳ (tổng ' + sch.rows.length + ' kỳ). ' +
+      h += '<p class="muted">' + kindText + '. ' + (dueK ? 'Đã đến hạn <b>' + dueK.k + '</b>/' + dueK.n + ' kỳ (theo Gốc phải trả LD23) · Còn <b>' + (dueK.n - dueK.k) + '</b> kỳ. ' : 'Đã trả <b>' + p.paidPeriods + '</b> kỳ · Còn <b>' + p.remainingPeriods + '</b> kỳ (tổng ' + sch.rows.length + ' kỳ). ') +
         (kind === 'short' ? 'Mỗi tháng chỉ trả lãi, đến ' + fdate(l.maturityDate || sch.rows[sch.rows.length - 1].date) + ' trả thêm gốc <b>' + money(l.balance, cur) + '</b>.' : '') + '</p>';
     }
     if (sch.rows.length && kind === 'amortizing') {
@@ -360,7 +365,9 @@
     h += '<section class="card"><h3>Thông tin khoản vay</h3><dl class="grid">' +
       kv('Mã HĐ chính', esc(l.id)) + kv('ID khách hàng', esc(l.custId)) +
       kv('Ngày vay (ngày mở)', fdate(l.openDate)) + kv('Ngày kết thúc', fdate(l.maturityDate)) +
-      kv('Gốc phải trả', money(l.due, cur)) + kv('Gốc đã trả', money(l.paid, cur)) +
+      kv('Gốc đến hạn lũy kế (cột P)', money(l.due, cur)) +
+      kv('Gốc đã trả', money(totalPaid, cur) + (relPaid > 0 ? '<small class="sub">HĐ chính ' + money(l.paid, cur) + ' + khoản liên quan ' + money(relPaid, cur) + '</small>' : '')) +
+      (relBal > 0 ? kv('Gốc còn lại', money(totalRemain, cur) + '<small class="sub">Chưa đến hạn ' + money(l.balance, cur) + ' + quá hạn/khoản liên quan ' + money(relBal, cur) + '</small>', 'wide') : '') +
       kv('Sản phẩm', esc(l.product), 'wide') +
       kv('Mã Port', esc(l.portCode)) + kv('Tên Port', esc(l.portName)) +
       kv('Sale ID', esc(l.saleId)) + kv('Tên cán bộ bán', esc(l.saleName)) +
@@ -374,7 +381,7 @@
         h += '<div class="rel-row"><div><b>' + esc(r.contract) + '</b><small>' + esc(r.module) + ' · mở ' + fdate(r.openDate) + ' · nhóm nợ ' + esc(r.debtGroup) + '</small></div>' +
           '<div class="rel-amt"><b>' + money(r.balance, r.currency) + '</b><small>gốc còn lại / vay ' + moneyShort(r.principal, r.currency) + '</small></div></div>';
       });
-      h += '</div><p class="muted small">Các khoản này (thường là phân hệ PD – chuyển nợ/quá hạn/trả góp) là dòng riêng trong sao kê, không cộng vào “Gốc còn lại” của hợp đồng chính ở trên.</p></section>';
+      h += '</div><p class="muted small">Các khoản này (thường là phân hệ PD – chuyển nợ/quá hạn/trả góp) là dòng riêng trong sao kê; gốc đã thu và gốc còn nợ ở các khoản này đã được cộng vào “Gốc đã trả” / “Gốc còn lại” ở trên.</p></section>';
     }
 
     // Lịch trả nợ

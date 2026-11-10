@@ -73,3 +73,11 @@ test('quá ngày đáo hạn còn dư nợ', () => {
 test('normalize tiếng Việt', () => {
   assert.equal(C.normalize('  Nguyễn  Thị Hồng Đào '), 'nguyen thi hong dao');
 });
+
+test('số kỳ đã đến hạn suy từ Gốc phải trả', () => {
+  // vay 105tr, 60 kỳ (cột Kì hạn ghi 59), đến hạn 103,25tr = 59 kỳ
+  const l = { principal: 105e6, due: 103.25e6, term: '59', openDate: '2021-11-12', maturityDate: '2026-11-12' };
+  assert.deepEqual(C.dueFromPrincipal(l), { k: 59, n: 60 });
+  // niên kim: không ra số nguyên → null
+  assert.equal(C.dueFromPrincipal({ principal: 100e6, due: 31234567, term: '36', openDate: '2025-10-10', maturityDate: '2028-10-10' }), null);
+});
