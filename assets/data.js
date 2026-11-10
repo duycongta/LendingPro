@@ -110,5 +110,56 @@
     return parseRows(aoa);
   }
 
-  return { parseRows: parseRows, parseWorkbook: parseWorkbook };
+
+  /* ---------- File "Lịch trả nợ tháng" (số liệu chính thức từ hệ thống) ---------- */
+  var SCOLS = {
+    tk:    ['Số tài khoản của Khách hàng (TK)', 1], custId: ['ID KH', 4], goc: ['Số tiền gốc', 5], lai: ['Số tiền lãi', 6],
+    due:   ['Ngày đến hạn thanh toán', 7], fee: ['Phí bảo hiểm', 8], tot: ['Tổng số tiền phải thanh toán', 9],
+    open:  ['Ngày mở', 19], bal: ['Gốc còn lại', 20], vay: ['Gốc vay', 21]
+  };
+  function findScheduleHeader(aoa) {
+    for (var i = 0; i < Math.min(aoa.length, 30); i++) {
+      var row = (aoa[i] || []).map(str);
+      if (row.indexOf('Ngày đến hạn thanh toán') >= 0 && row.indexOf('Số tiền gốc') >= 0) return i;
+    }
+    return -1;
+  }
+  function parseSchedule(aoa) {
+    var h = findScheduleHeader(aoa);
+    if (h < 0) throw new Error('Không nhận ra file lịch trả nợ.');
+    var headers = aoa[h].map(str), idx = {};
+    Object.keys(SCOLS).forEach(function (k) { var at = headers.indexOf(SCOLS[k][0]); idx[k] = at >= 0 ? at : SCOLS[k][1]; });
+    var rows = [], months = {};
+    for (var i = h + 1; i < aoa.length; i++) {
+      var r = aoa[i];
+      if (!r || !str(r[idx.tk])) continue;
+      var due = toISO(r[idx.due]);
+      if (!due) continue;
+      rows.push({ tk: str(r[idx.tk]), custId: str(r[idx.custId]), open: toISO(r[idx.open]), vay: num(r[idx.vay]), bal: num(r[idx.bal]),
+                  due: due, goc: num(r[idx.goc]), lai: num(r[idx.lai]), fee: num(r[idx.fee]), tot: num(r[idx.tot]) });
+      months[due.slice(0, 7)] = (months[due.slice(0, 7)] || 0) + 1;
+    }
+    var month = Object.keys(months).sort(function (a, b) { return months[b] - months[a]; })[0] || '';
+    return { rows: rows, month: month };
+  }
+  /** Ghép dòng lịch với hợp đồng LD23 theo ID KH + ngày mở + gốc vay → { mã HĐ chính: dòng lịch }. */
+  function matchSchedule(loans, rows) {
+    var q = {}, out = {};
+    rows.forEach(function (r) { (q[r.custId + '|' + r.open + '|' + r.vay] = q[r.custId + '|' + r.open + '|' + r.vay] || []).push(r); });
+    loans.forEach(function (l) {
+      var list = q[l.custId + '|' + l.openDate + '|' + l.principal];
+      if (list && list.length) out[l.id] = list.length > 1 ? list.shift() : list[0];
+    });
+    return out;
+  }
+  /** Nhận diện loại file: lịch trả nợ hay sao kê LD23. */
+  function parseAny(XLSX, data) {
+    var wb = XLSX.read(data, { type: 'array', dense: true });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: false });
+    if (findScheduleHeader(aoa) >= 0) return Object.assign({ kind: 'schedule' }, parseSchedule(aoa));
+    return Object.assign({ kind: 'loans' }, parseRows(aoa));
+  }
+
+  return { parseRows: parseRows, parseWorkbook: parseWorkbook, parseSchedule: parseSchedule, matchSchedule: matchSchedule, parseAny: parseAny };
 });

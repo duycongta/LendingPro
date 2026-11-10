@@ -6,7 +6,7 @@
   var PAGE = 60;
 
   var state = { loans: [], byId: {}, reportDate: null, fileName: '', query: '', onlyActive: false,
-                shown: PAGE, results: [], selected: null, method: 'equal', showAll: false };
+                shown: PAGE, results: [], selected: null, sched: null, schedMap: {}, method: 'equal', showAll: false };
 
   /* ---------- tiện ích ---------- */
   function esc(s) {
@@ -46,20 +46,21 @@
         } catch (e) { rej(e); }
       });
     },
-    get: function () {
+    get: function (key) {
       return DB.open().then(function (db) {
         return new Promise(function (res) {
-          var rq = db.transaction('kv').objectStore('kv').get('data');
+          var rq = db.transaction('kv').objectStore('kv').get(key || 'data');
           rq.onsuccess = function () { res(rq.result || null); };
           rq.onerror = function () { res(null); };
         });
       }).catch(function () { return null; });
     },
-    set: function (val) {
+    set: function (val, key) {
+      key = key || 'data';
       return DB.open().then(function (db) {
         return new Promise(function (res) {
           var tx = db.transaction('kv', 'readwrite');
-          if (val) tx.objectStore('kv').put(val, 'data'); else tx.objectStore('kv').delete('data');
+          if (val) tx.objectStore('kv').put(val, key); else tx.objectStore('kv').delete(key);
           tx.oncomplete = function () { res(true); };
           tx.onerror = function () { res(false); };
         });
@@ -77,6 +78,7 @@
     state.loans.forEach(function (l) { if (!l.search) l.search = C.normalize([l.id, l.custId, l.custName].join(' ')); state.byId[l.id] = l; });
     state.selected = null;
     state.stats = computeStats(state.loans);
+    if (state.sched) state.schedMap = D.matchSchedule(state.loans, state.sched.rows);
     show($('welcome'), false); show($('workspace'), true);
     $('q').disabled = false;
     renderStatus(); renderHome();
@@ -112,6 +114,14 @@
     show($('home'), home); show($('panes'), !home);
   }
 
+  function setSchedule(sc) {
+    state.sched = sc;
+    state.schedMap = state.loans.length ? D.matchSchedule(state.loans, sc.rows) : {};
+    renderStatus();
+    if (state.selected && state.byId[state.selected]) renderDetail(state.byId[state.selected]);
+  }
+  function monthLabel(m) { return m ? m.slice(5) + '/' + m.slice(0, 4) : ''; }
+
   function loadFile(file) {
     if (!file) return;
     busy(true, 'Đang đọc ' + file.name + '…');
@@ -121,13 +131,25 @@
       // nhường một nhịp cho trình duyệt vẽ màn hình chờ
       setTimeout(function () {
         try {
-          var parsed = D.parseWorkbook(window.XLSX, new Uint8Array(rd.result));
-          if (!parsed.loans.length) throw new Error('File không có dòng dữ liệu nào.');
+          var parsed = D.parseAny(window.XLSX, new Uint8Array(rd.result));
           parsed.fileName = file.name;
           parsed.updatedAt = new Date().toISOString();
-          setData(parsed);
-          DB.set(parsed);
-          pushRemote(parsed);
+          if (parsed.kind === 'schedule') {
+            if (!parsed.rows.length) throw new Error('File lịch trả nợ không có dòng dữ liệu nào.');
+            if (!state.loans.length) throw new Error('Hãy nạp file sao kê LD23 trước, rồi mới nạp file lịch trả nợ.');
+            delete parsed.kind;
+            setSchedule(parsed);
+            DB.set(parsed, 'schedule');
+            pushRemote(parsed, CFG.schedulePath, 'Cập nhật lịch trả nợ tháng ' + monthLabel(parsed.month) + ' (' + parsed.rows.length + ' khoản)');
+            var n = Object.keys(state.schedMap).length;
+            toast('Đã nạp lịch trả nợ ' + monthLabel(parsed.month) + ': ghép được ' + nf0.format(n) + '/' + nf0.format(parsed.rows.length) + ' khoản.');
+          } else {
+            if (!parsed.loans.length) throw new Error('File không có dòng dữ liệu nào.');
+            delete parsed.kind;
+            setData(parsed);
+            DB.set(parsed);
+            pushRemote(parsed, CFG.path, 'Cập nhật dữ liệu LD23 ngày ' + fdate(parsed.reportDate) + ' (' + parsed.loans.length + ' HĐ)');
+          }
         } catch (e) { fail(e.message || String(e)); }
         busy(false);
       }, 30);
@@ -147,36 +169,36 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { show(t, false); }, err ? 7000 : 3500);
   }
   function getToken() { try { return localStorage.getItem('lp_token') || ''; } catch (e) { return ''; } }
-  function apiUrl() { return 'https://api.github.com/repos/' + CFG.owner + '/' + CFG.repo + '/contents/' + CFG.path; }
+  function apiUrl(path) { return 'https://api.github.com/repos/' + CFG.owner + '/' + CFG.repo + '/contents/' + (path || CFG.path); }
   function authHeaders(extra) {
     var h = Object.assign({ 'X-GitHub-Api-Version': '2022-11-28' }, extra || {}), t = getToken();
     if (t) h.Authorization = 'Bearer ' + t;
     return h;
   }
-  function fetchRemote() {
+  function fetchRemote(path, key) {
+    path = path || CFG.path; key = key || 'loans';
     // API (luôn mới nhất) → file tĩnh trên Pages/localhost (có thể bị cache vài phút)
-    return fetch(apiUrl() + '?ref=' + CFG.branch, { headers: authHeaders({ Accept: 'application/vnd.github.raw+json' }), cache: 'no-store' })
+    return fetch(apiUrl(path) + '?ref=' + CFG.branch, { headers: authHeaders({ Accept: 'application/vnd.github.raw+json' }), cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw 0; return r.json(); })
-      .catch(function () { return fetch(CFG.path + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }); })
-      .then(function (j) { if (!j || !j.loans || !j.loans.length) throw 0; return j; });
+      .catch(function () { return fetch(path + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }); })
+      .then(function (j) { if (!j || !j[key] || !j[key].length) throw 0; return j; });
   }
   function toBase64(str) {
     var bytes = new TextEncoder().encode(str), bin = '', i, CH = 0x8000;
     for (i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
     return btoa(bin);
   }
-  function pushRemote(parsed) {
+  function pushRemote(parsed, path, message) {
     if (!getToken()) { toast('Đã nạp dữ liệu trên thiết bị này. Thêm token ở ⚙ để cập nhật lên GitHub.'); return; }
     busy(true, 'Đang cập nhật dữ liệu lên GitHub…');
-    var slim = { reportDate: parsed.reportDate, fileName: parsed.fileName, updatedAt: parsed.updatedAt,
-      loans: parsed.loans.map(function (l) { var c = Object.assign({}, l); delete c.search; return c; }) };
-    fetch(apiUrl() + '?ref=' + CFG.branch, { headers: authHeaders({ Accept: 'application/vnd.github+json' }), cache: 'no-store' })
+    var slim = Object.assign({}, parsed);
+    if (slim.loans) slim.loans = slim.loans.map(function (l) { var c = Object.assign({}, l); delete c.search; return c; });
+    fetch(apiUrl(path) + '?ref=' + CFG.branch, { headers: authHeaders({ Accept: 'application/vnd.github+json' }), cache: 'no-store' })
       .then(function (r) { return r.status === 404 ? null : r.ok ? r.json() : r.json().then(function (j) { throw new Error(j.message || r.status); }); })
       .then(function (meta) {
-        var body = { message: 'Cập nhật dữ liệu LD23 ngày ' + fdate(parsed.reportDate) + ' (' + parsed.loans.length + ' HĐ)',
-                     content: toBase64(JSON.stringify(slim)), branch: CFG.branch };
+        var body = { message: message, content: toBase64(JSON.stringify(slim)), branch: CFG.branch };
         if (meta && meta.sha) body.sha = meta.sha;
-        return fetch(apiUrl(), { method: 'PUT', headers: authHeaders({ Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+        return fetch(apiUrl(path), { method: 'PUT', headers: authHeaders({ Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       })
       .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw new Error(j.message || r.status); }); toast('✓ Đã cập nhật dữ liệu mới lên GitHub'); })
       .catch(function (e) { toast('Không cập nhật được lên GitHub: ' + (e.message || e) + '. Dữ liệu vẫn dùng được trên thiết bị này.', true); })
@@ -219,7 +241,8 @@
   function renderStatus() {
     $('status-line').innerHTML =
       '<span class="dot"></span>' + (state.fileName ? '<b>' + esc(state.fileName) + '</b> · ' : '') + (state.updatedAt ? 'cập nhật ' + esc(state.updatedAt.replace('T', ' ').slice(0, 16)) + ' · ' : '') +
-      'Ngày báo cáo <b>' + fdate(state.reportDate) + '</b> · ' + nf0.format(state.loans.length) + ' hợp đồng';
+      'Ngày báo cáo <b>' + fdate(state.reportDate) + '</b> · ' + nf0.format(state.loans.length) + ' hợp đồng' +
+      (state.sched ? ' · Lịch trả nợ <b>T' + monthLabel(state.sched.month) + '</b> (' + nf0.format(state.sched.rows.length) + ' khoản)' : '');
   }
 
   function renderList() {
@@ -295,7 +318,17 @@
       (sch.derived ? ' · suy ra từ ngày mở/đáo hạn' : '') + '</small></div></div>';
 
     // Số tiền phải trả hàng tháng
-    h += '<section class="card pay"><h3>Số tiền phải trả hàng tháng</h3>';
+    var off = state.schedMap[l.id];
+    if (off) {
+      h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag ok">Theo lịch hệ thống T' + monthLabel(state.sched.month) + '</span></div>' +
+        '<div class="pay-main"><div><span class="lbl">Đến hạn · ' + fdate(off.due) + '</span>' +
+        '<div class="big">' + money(off.tot, cur) + '</div></div>' +
+        '<div class="pay-split"><div><span>Gốc</span><b>' + money(off.goc, cur) + '</b></div>' +
+        '<div><span>Lãi</span><b>' + money(off.lai, cur) + '</b></div></div></div>' +
+        '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
+    } else {
+      h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag est">Ước tính</span></div>';
+      if (state.sched && !closed && sch.rows.length) h += '<p class="muted small" style="margin:0 0 10px">Khoản này không có trong lịch trả nợ T' + monthLabel(state.sched.month) + ' của hệ thống nên app chỉ tính ước tính.</p>';
     if (!sch.rows.length) {
       h += '<p class="muted">Hợp đồng không có kỳ hạn / ngày đáo hạn rõ ràng (thẻ, hạn mức, thấu chi…) nên chưa tính được lịch trả nợ.</p>';
     } else if (closed) {
@@ -315,6 +348,7 @@
         '<button type="button" data-method="annuity" class="' + (state.method === 'annuity' ? 'on' : '') + '">Tổng trả đều (niên kim)</button></div>';
     }
     h += '</section>';
+    }
 
     // Thông tin chung
     h += '<section class="card"><h3>Thông tin khoản vay</h3><dl class="grid">' +
@@ -438,9 +472,13 @@
   /* ---------- khởi động ---------- */
   function start() {
   // 1) data/loans.json mới nhất trên GitHub; 2) bản đã lưu trong trình duyệt; 3) màn hình nạp file
+  function loadSchedule() {
+    return fetchRemote(CFG.schedulePath, 'rows').catch(function () { return DB.get('schedule'); })
+      .then(function (sc) { if (sc && sc.rows && sc.rows.length) setSchedule(sc); }).catch(function () {});
+  }
   var loadErr = '';
   busy(true, 'Đang tải dữ liệu…');
-  fetchRemote().then(setData).catch(function (e) {
+  fetchRemote().then(setData).then(loadSchedule).catch(function (e) {
     loadErr = (e && e.message) ? e.message : '';
     return DB.get().then(function (saved) {
       if (saved && saved.loans && saved.loans.length) setData(saved);
