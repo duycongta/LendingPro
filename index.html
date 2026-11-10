@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#4f46e5">
   <title>LendingPro – Tra cứu khoản vay</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 22V10h3v9h8v3z' fill='white'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="assets/style.css">
+  <link rel="stylesheet" href="assets/style.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -19,7 +19,7 @@
       <div class="search" role="search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z"/></svg>
         <input id="q" type="search" inputmode="search" autocomplete="off" spellcheck="false"
-               placeholder="Nhập họ tên, ID khách hàng hoặc mã hợp đồng…" aria-label="Tra cứu khoản vay" disabled>
+               placeholder="Nhập họ tên, ID khách hàng hoặc mã hợp đồng…" aria-label="Tra cứu khoản vay">
         <button id="clear" class="icon-btn" type="button" aria-label="Xóa tìm kiếm" hidden>✕</button>
       </div>
       <button id="settings-btn" class="btn ghost icon" type="button" title="Cài đặt đồng bộ GitHub" aria-label="Cài đặt đồng bộ GitHub">
@@ -85,10 +85,10 @@
   <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
   <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">Đang đọc dữ liệu…</span></div>
 
-  <script src="assets/config.js"></script>
+  <script src="assets/config.js?v=3"></script>
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="assets/calc.js"></script>
-  <script src="assets/data.js"></script>
-  <script src="assets/app.js"></script>
+  <script src="assets/calc.js?v=3"></script>
+  <script src="assets/data.js?v=3"></script>
+  <script src="assets/app.js?v=3"></script>
 </body>
 </html>

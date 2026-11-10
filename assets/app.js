@@ -355,6 +355,7 @@
   var timer;
   $('q').addEventListener('input', function (e) {
     state.query = e.target.value; show($('clear'), !!state.query);
+    if (!state.loans.length) { toast('Chưa có dữ liệu – hãy bấm “Nạp file” để chọn file LD23.', true); return; }
     clearTimeout(timer); timer = setTimeout(runSearch, 120);
   });
   $('q').addEventListener('keydown', function (e) {
@@ -399,9 +400,18 @@
 
   /* ---------- khởi động ---------- */
   // 1) data/loans.json mới nhất trên GitHub; 2) bản đã lưu trong trình duyệt; 3) màn hình nạp file
-  fetchRemote().then(setData).catch(function () {
+  var loadErr = '';
+  busy(true, 'Đang tải dữ liệu…');
+  fetchRemote().then(setData).catch(function (e) {
+    loadErr = (e && e.message) ? e.message : '';
     return DB.get().then(function (saved) {
-      if (saved && saved.loans && saved.loans.length) setData(saved); else show($('welcome'), true);
+      if (saved && saved.loans && saved.loans.length) setData(saved);
+      else {
+        show($('welcome'), true);
+        var box = $('welcome-error');
+        box.textContent = '⚠ Không tải được dữ liệu từ GitHub' + (loadErr ? ' (' + loadErr + ')' : '') + '. Hãy chọn file LD23 để nạp trực tiếp, hoặc tải lại trang.';
+        show(box, true);
+      }
     });
-  });
+  }).then(function () { busy(false); });
 })();
