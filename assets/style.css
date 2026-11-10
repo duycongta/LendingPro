@@ -253,3 +253,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .home-note { text-align: center; }
 kbd { background: var(--gray-bg); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12px; }
 @media (max-width: 560px) { .home-hero h1 { font-size: 23px; } .home-stats .stat b { font-size: 19px; } }
+
+@media (min-width: 1081px) { .home-stats { grid-template-columns: repeat(3, 1fr); } }
+.home-stats .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 1081px) { .home-stats .stat:last-child:nth-child(odd) { grid-column: auto; } }

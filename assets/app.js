@@ -104,7 +104,6 @@
       '<div class="stats home-stats">' +
       card('Khách hàng', nf0.format(t.customers), nf0.format(t.customersOpen) + ' KH còn dư nợ', 'accent') +
       card('Hợp đồng', nf0.format(t.loans), nf0.format(t.open) + ' HĐ còn dư nợ gốc') +
-      card('Tổng gốc còn lại', moneyShort(t.total), t.usd ? '+ ' + moneyShort(t.usd, 'USD') : 'Quy đổi VND, chưa gồm ngoại tệ') +
       card('Nhóm nợ 2–5', nf0.format(t.bad), 'HĐ còn dư nợ cần chú ý') + '</div>' +
       '<p class="muted small home-note">Dữ liệu ngày báo cáo ' + fdate(state.reportDate) + '. Mẹo: nhấn phím <kbd>/</kbd> để đặt con trỏ vào ô tìm kiếm.</p>';
   }
