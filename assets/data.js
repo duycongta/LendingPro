@@ -115,7 +115,7 @@
   var SCOLS = {
     tk:    ['Số tài khoản của Khách hàng (TK)', 1], custId: ['ID KH', 4], goc: ['Số tiền gốc', 5], lai: ['Số tiền lãi', 6],
     due:   ['Ngày đến hạn thanh toán', 7], fee: ['Phí bảo hiểm', 8], tot: ['Tổng số tiền phải thanh toán', 9],
-    open:  ['Ngày mở', 19], bal: ['Gốc còn lại', 20], vay: ['Gốc vay', 21]
+    open:  ['Ngày mở', 19], bal: ['Gốc còn lại', 20], vay: ['Gốc vay', 21], contract: ['CONTRACT', 22]
   };
   function findScheduleHeader(aoa) {
     for (var i = 0; i < Math.min(aoa.length, 30); i++) {
@@ -136,19 +136,34 @@
       var due = toISO(r[idx.due]);
       if (!due) continue;
       rows.push({ tk: str(r[idx.tk]), custId: str(r[idx.custId]), open: toISO(r[idx.open]), vay: num(r[idx.vay]), bal: num(r[idx.bal]),
-                  due: due, goc: num(r[idx.goc]), lai: num(r[idx.lai]), fee: num(r[idx.fee]), tot: num(r[idx.tot]) });
+                  contract: headers.indexOf('CONTRACT') >= 0 ? str(r[idx.contract]) : '', due: due, goc: num(r[idx.goc]), lai: num(r[idx.lai]), fee: num(r[idx.fee]), tot: num(r[idx.tot]) });
       months[due.slice(0, 7)] = (months[due.slice(0, 7)] || 0) + 1;
     }
     var month = Object.keys(months).sort(function (a, b) { return months[b] - months[a]; })[0] || '';
     return { rows: rows, month: month };
   }
-  /** Ghép dòng lịch với hợp đồng LD23 theo ID KH + ngày mở + gốc vay → { mã HĐ chính: dòng lịch }. */
+  /** Ghép dòng lịch với hợp đồng LD23 → { mã HĐ chính: dòng lịch }.
+   *  Ưu tiên cột CONTRACT (chính xác); dòng nào không ghép được thì dùng ID KH + ngày mở + gốc vay. */
   function matchSchedule(loans, rows) {
-    var q = {}, out = {};
-    rows.forEach(function (r) { (q[r.custId + '|' + r.open + '|' + r.vay] = q[r.custId + '|' + r.open + '|' + r.vay] || []).push(r); });
+    var out = {}, used = {}, byC = {};
+    rows.forEach(function (r, i) { if (r.contract) byC[r.contract] = i; });
     loans.forEach(function (l) {
+      var ids = [l.id, l.contract].concat((l.related || []).map(function (x) { return x.contract; }));
+      for (var k = 0; k < ids.length; k++) {
+        var i = byC[ids[k]];
+        if (i != null && !used[i]) { out[l.id] = rows[i]; used[i] = 1; break; }
+      }
+    });
+    var q = {};
+    rows.forEach(function (r, i) {
+      if (used[i]) return;
+      var key = r.custId + '|' + r.open + '|' + r.vay;
+      (q[key] = q[key] || []).push(i);
+    });
+    loans.forEach(function (l) {
+      if (out[l.id]) return;
       var list = q[l.custId + '|' + l.openDate + '|' + l.principal];
-      if (list && list.length) out[l.id] = list.length > 1 ? list.shift() : list[0];
+      if (list && list.length) { var i = list.shift(); out[l.id] = rows[i]; used[i] = 1; }
     });
     return out;
   }

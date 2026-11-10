@@ -325,7 +325,7 @@
         '<div class="big">' + money(off.tot, cur) + '</div></div>' +
         '<div class="pay-split"><div><span>Gốc</span><b>' + money(off.goc, cur) + '</b></div>' +
         '<div><span>Lãi</span><b>' + money(off.lai, cur) + '</b></div></div></div>' +
-        '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
+        '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (Math.round(off.bal) !== Math.round(l.balance) ? ' · Gốc còn lại theo lịch hệ thống ' + money(off.bal, cur) + ' (LD23: ' + money(l.balance, cur) + ')' : '') + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
     } else {
       h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag est">Ước tính</span></div>';
       if (state.sched && !closed && sch.rows.length) h += '<p class="muted small" style="margin:0 0 10px">Khoản này không có trong lịch trả nợ T' + monthLabel(state.sched.month) + ' của hệ thống nên app chỉ tính ước tính.</p>';
