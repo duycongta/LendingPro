@@ -106,7 +106,7 @@
       '<div class="stats home-stats">' +
       card('Khách hàng', nf0.format(t.customers), nf0.format(t.customersOpen) + ' KH còn dư nợ', 'accent') +
       card('Hợp đồng', nf0.format(t.loans), nf0.format(t.open) + ' HĐ còn dư nợ gốc') +
-      card('Nhóm nợ 2–5', nf0.format(t.bad), 'HĐ còn dư nợ cần chú ý') + '</div>' +
+      card('Nhóm nợ 2–5', nf0.format(t.bad), 'HĐ còn dư nợ cần chú ý · theo dữ liệu LD23') + '</div>' +
       '<p class="muted small home-note">Dữ liệu ngày báo cáo ' + fdate(state.reportDate) + '. Mẹo: nhấn phím <kbd>/</kbd> để đặt con trỏ vào ô tìm kiếm.</p>';
   }
   function updateView() {
@@ -373,7 +373,7 @@
     // Thông tin chung
     h += '<section class="card"><h3>Thông tin khoản vay</h3><dl class="grid">' +
       kv('Mã HĐ chính', esc(l.id)) + kv('ID khách hàng', esc(l.custId)) +
-      (state.schedMap[l.id] ? kv('Số ngày quá hạn', state.schedMap[l.id].odDays > 0 ? '<span style="color:var(--red)">' + nf0.format(state.schedMap[l.id].odDays) + ' ngày</span>' : '0 ngày') : '') +
+      (state.schedMap[l.id] ? kv('Số ngày quá hạn', (state.schedMap[l.id].odDays > 0 ? '<span style="color:var(--red)">' + nf0.format(state.schedMap[l.id].odDays) + ' ngày</span>' : '0 ngày') + '<small class="sub">Theo dữ liệu Lịch trả nợ hệ thống</small>') : '') +
       kv('Ngày vay (ngày mở)', fdate(l.openDate)) + kv('Ngày kết thúc', fdate(l.maturityDate)) +
       kv('Gốc đến hạn lũy kế (cột P)', money(l.due, cur)) +
       kv('Gốc đã trả', money(totalPaid, cur) + (relPaid > 0 ? '<small class="sub">HĐ chính ' + money(l.paid, cur) + ' + khoản liên quan ' + money(relPaid, cur) + '</small>' : '')) +
@@ -381,7 +381,7 @@
       kv('Sản phẩm', esc(l.product), 'wide') +
       kv('Mã Port', esc(l.portCode)) + kv('Tên Port', esc(l.portName)) +
       kv('Sale ID', esc(l.saleId)) + kv('Tên cán bộ bán', esc(l.saleName)) +
-      kv('Nhóm nợ', esc(DEBT[l.debtGroup] || l.debtGroup), 'wide') +
+      kv('Nhóm nợ', esc(DEBT[l.debtGroup] || l.debtGroup) + '<small class="sub">Theo dữ liệu LD23</small>', 'wide') +
       (l.branch ? kv('Chi nhánh', esc(l.branch), 'wide') : '') + '</dl></section>';
 
     // Khoản liên quan (PD…)
