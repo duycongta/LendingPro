@@ -325,10 +325,16 @@
         '<div class="big">' + money(off.tot, cur) + '</div></div>' +
         '<div class="pay-split"><div><span>Gốc</span><b>' + money(off.goc, cur) + '</b></div>' +
         '<div><span>Lãi</span><b>' + money(off.lai, cur) + '</b></div></div></div>' +
-        '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (Math.round(off.bal) !== Math.round(l.balance) ? ' · Gốc còn lại theo lịch hệ thống ' + money(off.bal, cur) + ' (LD23: ' + money(l.balance, cur) + ')' : '') + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
+        '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
     } else {
       h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag est">Ước tính</span></div>';
       if (state.sched && !closed && sch.rows.length) h += '<p class="muted small" style="margin:0 0 10px">Khoản này không có trong lịch trả nợ T' + monthLabel(state.sched.month) + ' của hệ thống nên app chỉ tính ước tính.</p>';
+      if (!closed && sch.rows.length) {
+        var thisMonth = state.reportDate.slice(0, 7), passed = sch.rows.filter(function (x) { return x.date.slice(0, 7) === thisMonth && x.date < state.reportDate; })[0];
+        h += '<p class="muted small" style="margin:0 0 10px">Ước tính theo <b>Gốc còn lại LD23 ngày ' + fdate(state.reportDate) + '</b> (đã trừ các kỳ đã thu). ' +
+          (passed ? 'Kỳ ' + fdate(passed.date) + ' đã đến hạn trước ngày báo cáo nên không tính vào kỳ tới. ' : '') +
+          'Ngày đến hạn thực tế do hệ thống ấn định có thể khác ngày ước tính.</p>';
+      }
     if (!sch.rows.length) {
       h += '<p class="muted">Hợp đồng không có kỳ hạn / ngày đáo hạn rõ ràng (thẻ, hạn mức, thấu chi…) nên chưa tính được lịch trả nợ.</p>';
     } else if (closed) {
