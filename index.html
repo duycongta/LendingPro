@@ -22,6 +22,9 @@
                placeholder="Nhập họ tên, ID khách hàng hoặc mã hợp đồng…" aria-label="Tra cứu khoản vay" disabled>
         <button id="clear" class="icon-btn" type="button" aria-label="Xóa tìm kiếm" hidden>✕</button>
       </div>
+      <button id="settings-btn" class="btn ghost icon" type="button" title="Cài đặt đồng bộ GitHub" aria-label="Cài đặt đồng bộ GitHub">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.9 7.9 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.9 7.9 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1l.4 2.6h4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+      </button>
       <button id="load-btn" class="btn ghost" type="button" title="Nạp file sao kê khác">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l4.5 4.5-1.4 1.4L13 6.8V16h-2V6.8L8.9 8.9 7.5 7.5 12 3zM5 14h2v5h10v-5h2v7H5v-7z"/></svg>
         <span>Nạp file</span>
@@ -69,9 +72,20 @@
     </section>
   </main>
 
+  <dialog id="settings" class="dlg">
+    <form method="dialog">
+      <h3>Đồng bộ dữ liệu với GitHub</h3>
+      <p class="muted small">Khi nạp file Excel mới, app tự cập nhật <code>data/loans.json</code> trên GitHub để mọi thiết bị đều thấy dữ liệu mới. Cần một <b>Personal Access Token</b> (fine-grained, quyền <i>Contents: Read and write</i> cho repo này). Token chỉ lưu trong trình duyệt của thiết bị này.</p>
+      <label class="fld">Token GitHub<input id="token" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+      <p id="settings-msg" class="muted small"></p>
+      <div class="dlg-actions"><button class="btn ghost" id="token-clear" type="button">Xóa token</button><button class="btn primary sm" value="ok">Lưu</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
   <input type="file" id="file" accept=".xlsx,.xlsm,.xls" hidden>
   <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">Đang đọc dữ liệu…</span></div>
 
+  <script src="assets/config.js"></script>
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="assets/calc.js"></script>
   <script src="assets/data.js"></script>

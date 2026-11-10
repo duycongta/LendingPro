@@ -1,7 +1,7 @@
 /* LendingPro – giao diện tra cứu */
 (function () {
   'use strict';
-  var C = window.LendCalc, D = window.LendData;
+  var C = window.LendCalc, D = window.LendData, CFG = window.LP_CONFIG;
   var $ = function (id) { return document.getElementById(id); };
   var PAGE = 60;
 
@@ -72,8 +72,9 @@
     state.loans = payload.loans;
     state.reportDate = payload.reportDate || new Date().toISOString().slice(0, 10);
     state.fileName = payload.fileName || '';
+    state.updatedAt = payload.updatedAt || '';
     state.byId = {};
-    state.loans.forEach(function (l) { state.byId[l.id] = l; });
+    state.loans.forEach(function (l) { if (!l.search) l.search = C.normalize([l.id, l.custId, l.custName].join(' ')); state.byId[l.id] = l; });
     state.selected = null;
     show($('welcome'), false); show($('workspace'), true);
     $('q').disabled = false;
@@ -94,8 +95,10 @@
           var parsed = D.parseWorkbook(window.XLSX, new Uint8Array(rd.result));
           if (!parsed.loans.length) throw new Error('File không có dòng dữ liệu nào.');
           parsed.fileName = file.name;
+          parsed.updatedAt = new Date().toISOString();
           setData(parsed);
           DB.set(parsed);
+          pushRemote(parsed);
         } catch (e) { fail(e.message || String(e)); }
         busy(false);
       }, 30);
@@ -106,6 +109,49 @@
     var box = $('welcome-error');
     box.textContent = '⚠ ' + msg; show(box, true);
     if (state.loans.length) alert(msg); else { show($('welcome'), true); show($('workspace'), false); }
+  }
+
+  /* ---------- đồng bộ GitHub ---------- */
+  var toastTimer;
+  function toast(msg, err) {
+    var t = $('toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); show(t, true);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { show(t, false); }, err ? 7000 : 3500);
+  }
+  function getToken() { try { return localStorage.getItem('lp_token') || ''; } catch (e) { return ''; } }
+  function apiUrl() { return 'https://api.github.com/repos/' + CFG.owner + '/' + CFG.repo + '/contents/' + CFG.path; }
+  function authHeaders(extra) {
+    var h = Object.assign({ 'X-GitHub-Api-Version': '2022-11-28' }, extra || {}), t = getToken();
+    if (t) h.Authorization = 'Bearer ' + t;
+    return h;
+  }
+  function fetchRemote() {
+    // API (luôn mới nhất) → file tĩnh trên Pages/localhost (có thể bị cache vài phút)
+    return fetch(apiUrl() + '?ref=' + CFG.branch, { headers: authHeaders({ Accept: 'application/vnd.github.raw+json' }), cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .catch(function () { return fetch(CFG.path + '?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw 0; return r.json(); }); })
+      .then(function (j) { if (!j || !j.loans || !j.loans.length) throw 0; return j; });
+  }
+  function toBase64(str) {
+    var bytes = new TextEncoder().encode(str), bin = '', i, CH = 0x8000;
+    for (i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+    return btoa(bin);
+  }
+  function pushRemote(parsed) {
+    if (!getToken()) { toast('Đã nạp dữ liệu trên thiết bị này. Thêm token ở ⚙ để cập nhật lên GitHub.'); return; }
+    busy(true, 'Đang cập nhật dữ liệu lên GitHub…');
+    var slim = { reportDate: parsed.reportDate, fileName: parsed.fileName, updatedAt: parsed.updatedAt,
+      loans: parsed.loans.map(function (l) { var c = Object.assign({}, l); delete c.search; return c; }) };
+    fetch(apiUrl() + '?ref=' + CFG.branch, { headers: authHeaders({ Accept: 'application/vnd.github+json' }), cache: 'no-store' })
+      .then(function (r) { return r.status === 404 ? null : r.ok ? r.json() : r.json().then(function (j) { throw new Error(j.message || r.status); }); })
+      .then(function (meta) {
+        var body = { message: 'Cập nhật dữ liệu LD23 ngày ' + fdate(parsed.reportDate) + ' (' + parsed.loans.length + ' HĐ)',
+                     content: toBase64(JSON.stringify(slim)), branch: CFG.branch };
+        if (meta && meta.sha) body.sha = meta.sha;
+        return fetch(apiUrl(), { method: 'PUT', headers: authHeaders({ Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
+      })
+      .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw new Error(j.message || r.status); }); toast('✓ Đã cập nhật dữ liệu mới lên GitHub'); })
+      .catch(function (e) { toast('Không cập nhật được lên GitHub: ' + (e.message || e) + '. Dữ liệu vẫn dùng được trên thiết bị này.', true); })
+      .then(function () { busy(false); });
   }
 
   /* ---------- tìm kiếm ---------- */
@@ -143,7 +189,7 @@
 
   function renderStatus() {
     $('status-line').innerHTML =
-      '<span class="dot"></span>' + (state.fileName ? '<b>' + esc(state.fileName) + '</b> · ' : '') +
+      '<span class="dot"></span>' + (state.fileName ? '<b>' + esc(state.fileName) + '</b> · ' : '') + (state.updatedAt ? 'cập nhật ' + esc(state.updatedAt.replace('T', ' ').slice(0, 16)) + ' · ' : '') +
       'Ngày báo cáo <b>' + fdate(state.reportDate) + '</b> · ' + nf0.format(state.loans.length) + ' hợp đồng';
   }
 
@@ -341,13 +387,21 @@
   ['dragleave', 'drop'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); if (ev === 'drop' || e.target === document.documentElement || !e.relatedTarget) document.body.classList.remove('dragging'); }); });
   document.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
 
+  var dlg = $('settings');
+  $('settings-btn').addEventListener('click', function () {
+    $('token').value = getToken(); $('settings-msg').textContent = getToken() ? 'Đã có token trên thiết bị này.' : 'Chưa có token – chỉ tra cứu được, chưa cập nhật lên GitHub.';
+    dlg.showModal();
+  });
+  dlg.addEventListener('close', function () {
+    if (dlg.returnValue === 'ok') { try { localStorage.setItem('lp_token', $('token').value.trim()); } catch (e) {} toast('Đã lưu token'); }
+  });
+  $('token-clear').addEventListener('click', function () { try { localStorage.removeItem('lp_token'); } catch (e) {} $('token').value = ''; $('settings-msg').textContent = 'Đã xóa token.'; });
+
   /* ---------- khởi động ---------- */
-  // 1) dữ liệu đã nạp lần trước (IndexedDB); 2) data/loans.json nếu triển khai nội bộ có kèm; 3) màn hình nạp file
-  DB.get().then(function (saved) {
-    if (saved && saved.loans && saved.loans.length) { setData(saved); return; }
-    return fetch('data/loans.json', { cache: 'no-store' }).then(function (r) {
-      if (!r.ok) throw 0; return r.json();
-    }).then(function (j) { if (j && j.loans && j.loans.length) setData(j); else throw 0; })
-      .catch(function () { show($('welcome'), true); });
+  // 1) data/loans.json mới nhất trên GitHub; 2) bản đã lưu trong trình duyệt; 3) màn hình nạp file
+  fetchRemote().then(setData).catch(function () {
+    return DB.get().then(function (saved) {
+      if (saved && saved.loans && saved.loans.length) setData(saved); else show($('welcome'), true);
+    });
   });
 })();

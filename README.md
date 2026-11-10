@@ -8,7 +8,12 @@ Chạy tốt trên máy tính lẫn điện thoại, tự đổi sáng/tối the
 2. Kéo thả / chọn file `.xlsx`. File được đọc **ngay trên trình duyệt**, không gửi đi đâu; dữ liệu đã đọc được nhớ trong trình duyệt (IndexedDB) cho lần sau. Bấm **Nạp file** để thay file mới.
 3. Gõ họ tên (có dấu hay không đều được), ID khách hàng hoặc mã hợp đồng. Phím `/` để focus ô tìm kiếm.
 
-> ⚠️ Dữ liệu chứa thông tin khách hàng nên **không commit file Excel** (đã chặn trong `.gitignore`). Nếu triển khai nội bộ có thể đặt `data/loans.json` (cùng định dạng app lưu) để app tự nạp.
+## Lưu và đồng bộ dữ liệu trên GitHub
+- App tự tải `data/loans.json` (qua GitHub API, luôn là bản mới nhất) mỗi lần mở, nên mọi thiết bị đều thấy cùng dữ liệu.
+- Để **cập nhật dữ liệu từ bất kỳ thiết bị nào**: bấm ⚙ nhập *Personal Access Token* (fine-grained, repo này, quyền *Contents: Read and write*; chỉ lưu trong trình duyệt thiết bị đó), rồi bấm **Nạp file** chọn file LD23 mới – app đọc file và tự commit `data/loans.json` lên GitHub.
+- Không có token thì vẫn nạp và tra cứu được trên thiết bị đó, nhưng không cập nhật lên GitHub.
+
+> ⚠️ **Hiện repo đang công khai nên dữ liệu khách hàng trong `data/loans.json` ai cũng xem được** (kể cả lịch sử commit). Đây chỉ là giai đoạn test; cần chuyển sang phương án bảo mật trước khi dùng thật. File Excel gốc vẫn bị chặn trong `.gitignore`.
 
 ## Cột dữ liệu sử dụng
 | Hiển thị | Cột |

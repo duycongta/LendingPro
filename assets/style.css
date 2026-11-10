@@ -203,3 +203,16 @@ svg { fill: currentColor; }
   .item-amt { font-size: 13px; }
   .drop { padding: 32px 18px; }
 }
+
+.btn.icon { padding: 0; width: 40px; flex: none; } 
+.btn.primary.sm { height: 40px; padding: 0 22px; }
+.dlg { border: 0; border-radius: 20px; padding: 22px; width: min(460px, calc(100vw - 32px)); background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.dlg::backdrop { background: rgba(10,12,30,.55); backdrop-filter: blur(3px); }
+.dlg h3 { margin: 0 0 8px; } .dlg code { background: var(--gray-bg); padding: 1px 5px; border-radius: 5px; }
+.fld { display: block; font-size: 13px; font-weight: 600; margin-top: 12px; }
+.fld input { display: block; width: 100%; height: 44px; margin-top: 6px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface-2); padding: 0 12px; }
+.dlg-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; }
+.toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; max-width: calc(100vw - 32px);
+  background: var(--text); color: var(--bg); padding: 11px 18px; border-radius: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.toast.err { background: var(--red); color: #fff; }
+@media (max-width: 560px) { #settings-btn { order: 1; } }

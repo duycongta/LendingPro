@@ -3,5 +3,4 @@
 *.xls
 *.xlsm
 *.csv
-data/
 node_modules/
