@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#4f46e5">
   <title>LendingPro – Tra cứu khoản vay</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 22V10h3v9h8v3z' fill='white'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="assets/style.css?v=16">
+  <link rel="stylesheet" href="assets/style.css?v=17">
 </head>
 <body class="locked">
   <div id="lock" class="lock" hidden>
@@ -63,6 +63,17 @@
     <!-- Màn hình tra cứu -->
     <section id="workspace" class="workspace" hidden>
       <div class="status-line" id="status-line"></div>
+      <div class="cb-filter" id="cb-filter">
+        <button id="cb-toggle" class="btn ghost cb-toggle" type="button" aria-expanded="false" aria-controls="cb-panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18v2l-7 7v5l-4 2v-7L3 7V5z"/></svg>
+          <span id="cb-label">Lọc theo CB bán</span><span class="chev" aria-hidden="true">▾</span>
+        </button>
+        <button id="cb-clear" class="btn ghost cb-clear" type="button" hidden>Bỏ lọc</button>
+        <div id="cb-panel" class="cb-panel" hidden>
+          <input id="cb-search" type="search" autocomplete="off" placeholder="Tìm tên CB bán…" aria-label="Tìm tên cán bộ bán">
+          <ul id="cb-list" class="cb-list"></ul>
+        </div>
+      </div>
       <section id="home" class="home" hidden></section>
       <div class="panes" id="panes" hidden>
         <aside class="list-pane" id="list-pane" aria-label="Kết quả tra cứu">
@@ -115,10 +126,10 @@
   <input type="file" id="file-sched" accept=".xlsx,.xlsm,.xls" hidden>
   <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text">Đang đọc dữ liệu…</span></div>
 
-  <script src="assets/config.js?v=16"></script>
+  <script src="assets/config.js?v=17"></script>
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="assets/calc.js?v=16"></script>
-  <script src="assets/data.js?v=16"></script>
-  <script src="assets/app.js?v=16"></script>
+  <script src="assets/calc.js?v=17"></script>
+  <script src="assets/data.js?v=17"></script>
+  <script src="assets/app.js?v=17"></script>
 </body>
 </html>

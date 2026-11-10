@@ -6,7 +6,7 @@
   var PAGE = 60;
 
   var state = { loans: [], byId: {}, reportDate: null, fileName: '', query: '', onlyActive: false,
-                shown: PAGE, results: [], selected: null, sched: null, schedMap: {}, method: 'equal', showAll: false };
+                shown: PAGE, results: [], selected: null, sched: null, schedMap: {}, cbSel: {}, cbSearch: '', method: 'equal', showAll: false };
 
   /* ---------- tiện ích ---------- */
   function esc(s) {
@@ -78,6 +78,7 @@
     state.loans.forEach(function (l) { if (!l.search) l.search = C.normalize([l.id, l.custId, l.custName].join(' ')); state.byId[l.id] = l; });
     state.selected = null;
     state.stats = computeStats(state.loans);
+    buildCbs();
     if (state.sched) state.schedMap = D.matchSchedule(state.loans, state.sched.rows);
     show($('welcome'), false); show($('workspace'), true);
     $('q').disabled = false;
@@ -110,7 +111,7 @@
       '<p class="muted small home-note">Dữ liệu ngày báo cáo ' + fdate(state.reportDate) + '. Mẹo: nhấn phím <kbd>/</kbd> để đặt con trỏ vào ô tìm kiếm.</p>';
   }
   function updateView() {
-    var home = !state.query.trim() && !state.selected;
+    var home = !state.query.trim() && !cbActive() && !state.selected;
     show($('home'), home); show($('panes'), !home);
   }
 
@@ -215,10 +216,11 @@
     var raw = state.query.trim(), q = C.normalize(raw);
     var tokens = q ? q.split(' ') : [];
     var out;
+    var base = cbActive() ? state.loans.filter(function (l) { return state.cbSel[l.saleName]; }) : state.loans;
     if (!tokens.length) {
-      out = [];
+      out = cbActive() ? base.slice() : [];
     } else {
-      out = state.loans.filter(function (l) {
+      out = base.filter(function (l) {
         return tokens.every(function (t) { return l.search.indexOf(t) >= 0; });
       });
     }
@@ -238,6 +240,37 @@
   function srcSched() {
     var sc = state.sched; if (!sc) return 'Theo dữ liệu Lịch trả nợ hệ thống';
     return 'Theo dữ liệu Lịch trả nợ hệ thống · tháng ' + monthLabel(sc.month) + (sc.updatedAt ? ' · nạp ngày ' + fdate(sc.updatedAt.slice(0, 10)) : '');
+  }
+
+  /* ---------- lọc theo CB bán ---------- */
+  function cbActive() { return Object.keys(state.cbSel).length > 0; }
+  function buildCbs() {
+    var m = {};
+    state.loans.forEach(function (l) { if (l.saleName) m[l.saleName] = (m[l.saleName] || 0) + 1; });
+    state.cbs = Object.keys(m).sort(function (a, b) { return a.localeCompare(b, 'vi'); }).map(function (n) { return { name: n, count: m[n], norm: C.normalize(n) }; });
+    Object.keys(state.cbSel).forEach(function (n) { if (!m[n]) delete state.cbSel[n]; });
+    renderCbList(); renderCbLabel();
+  }
+  function renderCbLabel() {
+    var sel = Object.keys(state.cbSel), t = $('cb-toggle');
+    $('cb-label').textContent = !sel.length ? 'Lọc theo CB bán' : 'CB bán: ' + sel[0] + (sel.length > 1 ? ' (+' + (sel.length - 1) + ')' : '');
+    t.classList.toggle('active', sel.length > 0);
+    show($('cb-clear'), sel.length > 0);
+  }
+  function renderCbList() {
+    var q = C.normalize(state.cbSearch), html = '';
+    (state.cbs || []).forEach(function (c) {
+      if (q && c.norm.indexOf(q) < 0) return;
+      var on = !!state.cbSel[c.name];
+      html += '<li><label class="' + (on ? 'on' : '') + '"><input type="checkbox" data-cb="' + esc(c.name) + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="nm">' + esc(c.name) + '</span><span class="ct">' + nf0.format(c.count) + '</span></label></li>';
+    });
+    $('cb-list').innerHTML = html || '<li class="cb-empty">Không có CB bán phù hợp.</li>';
+  }
+
+  function schedField(l, k) {
+    var o = state.schedMap[l.id], v = o && o[k];
+    return v ? esc(v) + '<small class="sub">' + srcSched() + '</small>' : '—<small class="sub">Chưa có trong Lịch trả nợ hệ thống</small>';
   }
   function anchorOf(l) { var o = state.schedMap[l.id]; return o ? o.due : null; }
   function statusOf(l) {
@@ -263,7 +296,7 @@
     var cust = {};
     res.forEach(function (l) { cust[l.custId] = 1; });
     var nc = Object.keys(cust).length, summary;
-    if (!state.query.trim()) summary = 'Danh sách tìm kiếm';
+    if (!state.query.trim() && !cbActive()) summary = 'Danh sách tìm kiếm';
     else if (!res.length) summary = 'Không tìm thấy';
     else if (nc === 1 && state.query.trim()) {
       var tot = res.reduce(function (s, l) { return s + l.balance + (l.relatedBalance || 0); }, 0), cur = res[0].currency;
@@ -271,7 +304,7 @@
     } else summary = nf0.format(res.length) + ' hợp đồng' + (state.query.trim() ? ' · ' + nc + ' khách hàng' : '');
     $('summary').innerHTML = summary;
 
-    if (!res.length && !state.query.trim()) {
+    if (!res.length && !state.query.trim() && !cbActive()) {
       list.innerHTML = '<li class="empty"><div class="empty-art">⌨️</div><b>Nhập từ khóa để tìm</b><span>Gõ họ tên, ID khách hàng hoặc mã hợp đồng ở ô tìm kiếm.</span></li>';
       show($('more'), false);
       return;
@@ -386,6 +419,7 @@
       kv('Sản phẩm', esc(l.product), 'wide') +
       kv('Mã Port', esc(l.portCode)) + kv('Tên Port', esc(l.portName)) +
       kv('Sale ID', esc(l.saleId)) + kv('Tên cán bộ bán', esc(l.saleName)) +
+      (/^Vay Hoi Lien/.test(l.product) ? kv('Tên TT', schedField(l, 'tt')) + kv('Xã/Phường mới', schedField(l, 'ward')) : '') +
       kv('Nhóm nợ', esc(DEBT[l.debtGroup] || l.debtGroup) + '<small class="sub">' + srcLd() + '</small>', 'wide') +
       (l.branch ? kv('Chi nhánh', esc(l.branch), 'wide') : '') + '</dl></section>';
 
@@ -452,6 +486,18 @@
   }
 
   /* ---------- sự kiện ---------- */
+  $('cb-toggle').addEventListener('click', function () {
+    var open = $('cb-panel').hidden; show($('cb-panel'), open); $('cb-toggle').setAttribute('aria-expanded', String(open));
+    if (open) { $('cb-search').focus(); }
+  });
+  $('cb-search').addEventListener('input', function (e) { state.cbSearch = e.target.value; renderCbList(); });
+  $('cb-list').addEventListener('change', function (e) {
+    var n = e.target.getAttribute('data-cb'); if (n == null) return;
+    if (e.target.checked) state.cbSel[n] = 1; else delete state.cbSel[n];
+    renderCbLabel(); renderCbList(); runSearch();
+  });
+  $('cb-clear').addEventListener('click', function () { state.cbSel = {}; renderCbLabel(); renderCbList(); runSearch(); });
+
   var timer;
   $('q').addEventListener('input', function (e) {
     state.query = e.target.value; show($('clear'), !!state.query);
