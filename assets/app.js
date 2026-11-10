@@ -76,11 +76,41 @@
     state.byId = {};
     state.loans.forEach(function (l) { if (!l.search) l.search = C.normalize([l.id, l.custId, l.custName].join(' ')); state.byId[l.id] = l; });
     state.selected = null;
+    state.stats = computeStats(state.loans);
     show($('welcome'), false); show($('workspace'), true);
     $('q').disabled = false;
-    renderStatus();
+    renderStatus(); renderHome();
     runSearch();
     routeFromHash();
+  }
+
+  function computeStats(loans) {
+    var cust = {}, custOpen = {}, open = 0, bad = 0, total = 0, usd = 0;
+    loans.forEach(function (l) {
+      cust[l.custId] = 1;
+      if (l.balance > 0) {
+        open++; custOpen[l.custId] = 1;
+        if (l.currency === 'VND') total += l.balance; else usd += l.balance;
+        if (parseInt(l.debtGroup, 10) >= 2) bad++;
+      }
+    });
+    return { customers: Object.keys(cust).length, customersOpen: Object.keys(custOpen).length, loans: loans.length, open: open, bad: bad, total: total, usd: usd };
+  }
+  function renderHome() {
+    var t = state.stats;
+    function card(label, val, sub, cls) { return '<div class="stat ' + (cls || '') + '"><span>' + label + '</span><b>' + val + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; }
+    $('home').innerHTML =
+      '<div class="home-hero"><h1>Tra cứu khoản vay</h1><p>Nhập <b>họ tên</b>, <b>ID khách hàng</b> hoặc <b>mã hợp đồng</b> vào ô tìm kiếm phía trên để xem thông tin khoản vay.</p></div>' +
+      '<div class="stats home-stats">' +
+      card('Khách hàng', nf0.format(t.customers), nf0.format(t.customersOpen) + ' KH còn dư nợ', 'accent') +
+      card('Hợp đồng', nf0.format(t.loans), nf0.format(t.open) + ' HĐ còn dư nợ gốc') +
+      card('Tổng gốc còn lại', moneyShort(t.total), t.usd ? '+ ' + moneyShort(t.usd, 'USD') : 'Quy đổi VND, chưa gồm ngoại tệ') +
+      card('Nhóm nợ 2–5', nf0.format(t.bad), 'HĐ còn dư nợ cần chú ý') + '</div>' +
+      '<p class="muted small home-note">Dữ liệu ngày báo cáo ' + fdate(state.reportDate) + '. Mẹo: nhấn phím <kbd>/</kbd> để đặt con trỏ vào ô tìm kiếm.</p>';
+  }
+  function updateView() {
+    var home = !state.query.trim() && !state.selected;
+    show($('home'), home); show($('panes'), !home);
   }
 
   function loadFile(file) {
@@ -160,7 +190,7 @@
     var tokens = q ? q.split(' ') : [];
     var out;
     if (!tokens.length) {
-      out = state.loans.slice();
+      out = [];
     } else {
       out = state.loans.filter(function (l) {
         return tokens.every(function (t) { return l.search.indexOf(t) >= 0; });
@@ -174,7 +204,7 @@
       return (b.balance + b.relatedBalance) - (a.balance + a.relatedBalance);
     });
     state.results = out; state.shown = PAGE;
-    renderList();
+    renderList(); updateView();
   }
 
   /* ---------- hiển thị danh sách ---------- */
@@ -198,13 +228,19 @@
     var cust = {};
     res.forEach(function (l) { cust[l.custId] = 1; });
     var nc = Object.keys(cust).length, summary;
-    if (!res.length) summary = 'Không tìm thấy';
+    if (!state.query.trim()) summary = 'Danh sách tìm kiếm';
+    else if (!res.length) summary = 'Không tìm thấy';
     else if (nc === 1 && state.query.trim()) {
       var tot = res.reduce(function (s, l) { return s + l.balance; }, 0), cur = res[0].currency;
       summary = '<b>' + esc(res[0].custName) + '</b> · ' + res.length + ' khoản · Dư nợ ' + moneyShort(tot, cur);
     } else summary = nf0.format(res.length) + ' hợp đồng' + (state.query.trim() ? ' · ' + nc + ' khách hàng' : '');
     $('summary').innerHTML = summary;
 
+    if (!res.length && !state.query.trim()) {
+      list.innerHTML = '<li class="empty"><div class="empty-art">⌨️</div><b>Nhập từ khóa để tìm</b><span>Gõ họ tên, ID khách hàng hoặc mã hợp đồng ở ô tìm kiếm.</span></li>';
+      show($('more'), false);
+      return;
+    }
     if (!res.length) {
       list.innerHTML = '<li class="empty"><div class="empty-art">🔎</div><b>Không có kết quả</b>' +
         '<span>Thử nhập ít từ hơn, bỏ dấu, hoặc kiểm tra lại ID khách hàng / mã hợp đồng.</span></li>';
@@ -335,7 +371,7 @@
     state.selected = id; state.showAll = false;
     renderDetail(l);
     show($('placeholder'), false); show($('detail'), true);
-    document.body.classList.add('detail-open');
+    document.body.classList.add('detail-open'); updateView();
     $('detail-pane').scrollTop = 0; window.scrollTo(0, 0);
     Array.prototype.forEach.call(document.querySelectorAll('.item'), function (b) { b.classList.toggle('active', b.dataset.id === id); });
     if (push !== false && location.hash !== '#hd=' + id) location.hash = 'hd=' + encodeURIComponent(id);
@@ -343,7 +379,7 @@
   function closeDetail() {
     state.selected = null;
     document.body.classList.remove('detail-open');
-    show($('detail'), false); show($('placeholder'), true);
+    show($('detail'), false); show($('placeholder'), true); updateView();
     Array.prototype.forEach.call(document.querySelectorAll('.item.active'), function (b) { b.classList.remove('active'); });
   }
   function routeFromHash() {
@@ -433,7 +469,7 @@
     } catch (e) { return false; }
   }
   function unlock(remember) {
-    try { sessionStorage.setItem(UNLOCK_KEY, '1'); if (remember) localStorage.setItem(UNLOCK_KEY, String(Date.now() + 30 * 864e5)); } catch (e) {}
+    try { sessionStorage.setItem(UNLOCK_KEY, '1'); if (remember) localStorage.setItem(UNLOCK_KEY, String(Date.now() + 15 * 864e5)); } catch (e) {}
     document.body.classList.remove('locked'); show($('lock'), false);
     start();
   }
@@ -444,7 +480,7 @@
     if (Date.now() < lockUntil) { msg.textContent = 'Nhập sai quá nhiều lần, thử lại sau ' + Math.ceil((lockUntil - Date.now()) / 1000) + ' giây.'; return; }
     if (!window.crypto || !crypto.subtle) { msg.textContent = 'Trình duyệt cần mở trang bằng https để kiểm tra PIN.'; return; }
     sha256(pin).then(function (h) {
-      if (h === PIN_HASH) { unlock($('remember').checked); return; }
+      if (h === PIN_HASH) { unlock(true); return; }
       fails++; $('pin').value = ''; $('lock-box').classList.remove('shake'); void $('lock-box').offsetWidth; $('lock-box').classList.add('shake');
       if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; msg.textContent = 'Sai 5 lần – khóa 30 giây.'; }
       else msg.textContent = 'Mã PIN không đúng.';

@@ -243,3 +243,13 @@ body.locked > header, body.locked > main { display: none; }
 @media (max-width: 860px) { .panes { grid-template-columns: minmax(0, 1fr); } }
 html, body { max-width: 100%; overflow-x: hidden; }
 .lock-inner .logo { color: #fff; }
+
+/* ---------- Màn hình chính (tóm tắt) ---------- */
+.home-hero { text-align: center; padding: 28px 8px 22px; }
+.home-hero h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -.5px; }
+.home-hero p { margin: 0 auto; max-width: 520px; color: var(--muted); }
+.home-stats { max-width: 980px; margin: 0 auto 14px; }
+.home-stats .stat b { font-size: 24px; }
+.home-note { text-align: center; }
+kbd { background: var(--gray-bg); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12px; }
+@media (max-width: 560px) { .home-hero h1 { font-size: 23px; } .home-stats .stat b { font-size: 19px; } }
