@@ -271,7 +271,7 @@
         '<div class="big">' + money(p.nextTotal, cur) + '</div></div>' +
         '<div class="pay-split"><div><span>Gốc</span><b>' + money(p.nextPrincipal, cur) + '</b></div>' +
         '<div><span>Lãi</span><b>' + money(p.nextInterest, cur) + '</b></div></div></div>';
-      h += '<p class="muted">' + kindText + '. Còn <b>' + p.remainingPeriods + '</b> kỳ trả. ' +
+      h += '<p class="muted">' + kindText + '. Đã trả <b>' + p.paidPeriods + '</b> kỳ · Còn <b>' + p.remainingPeriods + '</b> kỳ (tổng ' + sch.rows.length + ' kỳ). ' +
         (kind === 'short' ? 'Mỗi tháng chỉ trả lãi, đến ' + fdate(l.maturityDate || sch.rows[sch.rows.length - 1].date) + ' trả thêm gốc <b>' + money(l.balance, cur) + '</b>.' : '') + '</p>';
     }
     if (sch.rows.length && kind === 'amortizing') {
@@ -284,6 +284,7 @@
     h += '<section class="card"><h3>Thông tin khoản vay</h3><dl class="grid">' +
       kv('Mã HĐ chính', esc(l.id)) + kv('ID khách hàng', esc(l.custId)) +
       kv('Ngày vay (ngày mở)', fdate(l.openDate)) + kv('Ngày kết thúc', fdate(l.maturityDate)) +
+      kv('Gốc phải trả', money(l.due, cur)) + kv('Gốc đã trả', money(l.paid, cur)) +
       kv('Sản phẩm', esc(l.product), 'wide') +
       kv('Mã Port', esc(l.portCode)) + kv('Tên Port', esc(l.portName)) +
       kv('Sale ID', esc(l.saleId)) + kv('Tên cán bộ bán', esc(l.saleName)) +
@@ -399,6 +400,7 @@
   $('token-clear').addEventListener('click', function () { try { localStorage.removeItem('lp_token'); } catch (e) {} $('token').value = ''; $('settings-msg').textContent = 'Đã xóa token.'; });
 
   /* ---------- khởi động ---------- */
+  function start() {
   // 1) data/loans.json mới nhất trên GitHub; 2) bản đã lưu trong trình duyệt; 3) màn hình nạp file
   var loadErr = '';
   busy(true, 'Đang tải dữ liệu…');
@@ -414,4 +416,39 @@
       }
     });
   }).then(function () { busy(false); });
+  }
+
+  /* ---------- mã PIN ---------- */
+  var PIN_HASH = 'd619e89bdaae0de8760ea721fa1ba8d9a819870b1ba82d720e7ac802270fce92';
+  var UNLOCK_KEY = 'lp_unlock';
+  function sha256(str) {
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function (b) {
+      return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    });
+  }
+  function isUnlocked() {
+    try {
+      if (sessionStorage.getItem(UNLOCK_KEY) === '1') return true;
+      return +localStorage.getItem(UNLOCK_KEY) > Date.now();
+    } catch (e) { return false; }
+  }
+  function unlock(remember) {
+    try { sessionStorage.setItem(UNLOCK_KEY, '1'); if (remember) localStorage.setItem(UNLOCK_KEY, String(Date.now() + 30 * 864e5)); } catch (e) {}
+    document.body.classList.remove('locked'); show($('lock'), false);
+    start();
+  }
+  var fails = 0, lockUntil = 0;
+  $('lock-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var msg = $('lock-msg'), pin = $('pin').value.trim();
+    if (Date.now() < lockUntil) { msg.textContent = 'Nhập sai quá nhiều lần, thử lại sau ' + Math.ceil((lockUntil - Date.now()) / 1000) + ' giây.'; return; }
+    if (!window.crypto || !crypto.subtle) { msg.textContent = 'Trình duyệt cần mở trang bằng https để kiểm tra PIN.'; return; }
+    sha256(pin).then(function (h) {
+      if (h === PIN_HASH) { unlock($('remember').checked); return; }
+      fails++; $('pin').value = ''; $('lock-box').classList.remove('shake'); void $('lock-box').offsetWidth; $('lock-box').classList.add('shake');
+      if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; msg.textContent = 'Sai 5 lần – khóa 30 giây.'; }
+      else msg.textContent = 'Mã PIN không đúng.';
+    });
+  });
+  if (isUnlocked()) unlock(false); else { show($('lock'), true); document.body.classList.add('locked'); $('pin').focus(); }
 })();

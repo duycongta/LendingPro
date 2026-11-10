@@ -188,7 +188,6 @@ svg { fill: currentColor; }
 }
 @media (max-width: 560px) {
   .topbar-inner { flex-wrap: wrap; gap: 10px; }
-  .brand-name { display: none; }
   .search { order: 2; flex-basis: 100%; }
   .brand { order: 0; } #load-btn { order: 1; margin-left: auto; }
   .list-tools { top: 112px; }
@@ -216,3 +215,31 @@ svg { fill: currentColor; }
   background: var(--text); color: var(--bg); padding: 11px 18px; border-radius: 14px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
 .toast.err { background: var(--red); color: #fff; }
 @media (max-width: 560px) { #settings-btn { order: 1; } }
+
+/* ---------- Khóa PIN ---------- */
+body.locked > header, body.locked > main { display: none; }
+.lock { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px;
+  background: radial-gradient(1200px 600px at 20% -10%, color-mix(in srgb, var(--primary) 30%, transparent), transparent), var(--bg); }
+.lock-box { width: min(380px, 100%); }
+.lock-inner { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); padding: 32px 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.lock-inner .logo.big { width: 56px; height: 56px; font-size: 24px; border-radius: 16px; margin: 0 auto; }
+.lock-inner h1 { margin: 4px 0 0; font-size: 26px; letter-spacing: -.4px; } .lock-inner h1 b { color: var(--primary); }
+.lock-inner p { margin: 0; }
+.lock-inner #pin { height: 54px; text-align: center; font-size: 24px; letter-spacing: 8px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface-2); outline: none; margin-top: 6px; }
+.lock-inner #pin:focus { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 18%, transparent); }
+.rem { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; justify-content: center; }
+.lock-msg { color: var(--red); min-height: 22px; font-size: 13.5px; font-weight: 600; }
+.shake { animation: shake .35s; }
+@keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+/* điện thoại: thanh trên hiện logo + chữ LendingPro */
+@media (max-width: 560px) {
+  .brand-name { display: inline; font-size: 17px; }
+  .topbar-inner { gap: 8px 10px; }
+}
+@media (max-width: 400px) { #load-btn span { display: none; } #load-btn { padding: 0; width: 40px; } }
+/* chống tràn ngang khi tên dài */
+.panes { grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); }
+.list-pane, .detail-pane, .results, .results li { min-width: 0; }
+@media (max-width: 860px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+html, body { max-width: 100%; overflow-x: hidden; }
+.lock-inner .logo { color: #fff; }

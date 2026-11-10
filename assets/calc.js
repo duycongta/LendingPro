@@ -99,13 +99,15 @@
     var rows = sch.rows;
     var out = { schedule: sch, closed: !(loan.balance > 0), nextRow: null, nextDate: null,
                 nextPrincipal: 0, nextInterest: 0, nextTotal: 0, remainingPeriods: 0,
-                finalPrincipal: 0, isFinalPeriod: false, pastMaturity: false, overdueDays: 0 };
+                paidPeriods: 0, finalPrincipal: 0, isFinalPeriod: false, pastMaturity: false, overdueDays: 0 };
     if (!rows.length) return out;
     var upcoming = rows.filter(function (x) { return x.date >= asOf; });
     out.remainingPeriods = upcoming.length;
+    out.paidPeriods = rows.length - upcoming.length;
     var r = (loan.rate || 0) / 100 / 12;
     var bal = loan.balance || 0;
     if (!upcoming.length) {
+      out.paidPeriods = rows.length;
       out.pastMaturity = bal > 0;
       out.overdueDays = bal > 0 ? diffDays(asOf, loan.maturityDate || rows[rows.length - 1].date) : 0;
       return out;

@@ -20,6 +20,7 @@
     term:      ['Kì hạn', 12],
     termName:  ['Tên kì hạn', 13],
     principal: ['Gốc vay', 14],
+    due:       ['Gốc phải trả', 15],
     paid:      ['Gốc đã trả', 16],
     balance:   ['Gốc còn lại', 17],
     interestLeft: ['Lãi còn lại', 20],
@@ -64,7 +65,7 @@
       custId: str(g('custId')), custName: str(g('custName')), currency: str(g('currency')) || 'VND',
       openDate: toISO(g('openDate')), maturityDate: toISO(g('maturity')),
       rate: num(g('rate')), term: str(g('term')), termName: str(g('termName')),
-      principal: num(g('principal')), paid: num(g('paid')), balance: num(g('balance')),
+      principal: num(g('principal')), due: num(g('due')), paid: num(g('paid')), balance: num(g('balance')),
       interestLeft: num(g('interestLeft')), debtGroup: str(g('debtGroup')), branch: str(g('branch')),
       product: str(g('product')), portCode: str(g('portCode')), portName: str(g('portName')),
       saleId: str(g('saleId')), saleName: str(g('saleName'))
