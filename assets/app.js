@@ -129,7 +129,7 @@
   }
   /** Số ngày quá hạn: ưu tiên LD42 (mới nhất; không có trong LD42 = không quá hạn), nếu chưa nạp LD42 thì dùng lịch trả nợ hệ thống. */
   function overdueOf(l) {
-    if (state.ld42) return { days: state.ld42Map[l.id] || 0, src: 'ld42', inFile: state.ld42Map[l.id] != null };
+    if (state.ld42) { var m = state.ld42Map[l.id]; return { days: m ? m.days : 0, src: 'ld42', inFile: !!m, m: m || null }; }
     var o = state.schedMap[l.id];
     if (o) return { days: o.odDays || 0, src: 'sched', inFile: true };
     return null;
@@ -423,7 +423,7 @@
       h += '<p class="warn">Phần gốc của hợp đồng chính đã đến hạn hết. Còn nợ gốc quá hạn ở khoản liên quan: <b>' + money(relBal, cur) + '</b>.</p>';
     } else if (closed) {
       var ilf = interestLeftOf(l);
-      if (odi && odi.days > 0) h += '<p class="warn">Không còn dư nợ gốc nhưng <b>vẫn còn nợ quá hạn ' + nf0.format(odi.days) + ' ngày</b> (lãi/lãi phạt) theo dữ liệu LD42 ngày ' + fdate(state.ld42.reportDate) + '.</p>';
+      if (odi && odi.days > 0) h += '<p class="warn">Không còn dư nợ gốc nhưng <b>vẫn còn nợ quá hạn ' + nf0.format(odi.days) + ' ngày</b>' + (odi.m ? ': lãi ' + money(odi.m.inn, cur) + ', lãi phạt ' + money(odi.m.pe + odi.m.ps, cur) + (odi.m.pr > 0 ? ', gốc ' + money(odi.m.pr, cur) : '') : '') + ' (theo dữ liệu LD42 ngày ' + fdate(state.ld42.reportDate) + ').</p>';
       else if (ilf > 0) h += '<p class="note-amber">Không còn dư nợ gốc nhưng <b>còn lãi chưa thu ' + money(ilf, cur) + '</b> (theo dữ liệu LD23 ngày ' + fdate(state.reportDate) + ').</p>';
       else h += '<p class="muted">' + (l.principal > 0 ? 'Hợp đồng đã tất toán' : 'Hợp đồng không có dư nợ') + ' – không phát sinh khoản phải trả.</p>';
     } else if (p.pastMaturity) {
@@ -441,6 +441,16 @@
         '<button type="button" data-method="annuity" class="' + (state.method === 'annuity' ? 'on' : '') + '">Tổng trả đều (niên kim)</button></div>';
     }
     h += '</section>';
+    }
+
+    // Nợ quá hạn theo LD42
+    if (odi && odi.src === 'ld42' && odi.m) {
+      var om = odi.m;
+      h += '<section class="card"><div class="card-h"><h3>Nợ quá hạn phải trả</h3><span class="tag est">LD42 · ' + fdate(state.ld42.reportDate) + '</span></div><dl class="grid">' +
+        kv('Gốc quá hạn', money(om.pr, cur)) + kv('Lãi quá hạn', money(om.inn, cur)) +
+        kv('Lãi phạt', money(om.pe + om.ps, cur) + '<small class="sub">PE ' + money(om.pe, cur) + ' + PS ' + money(om.ps, cur) + ' (theo cột Tổng PE / Tổng PS phải trả của LD42)</small>', 'wide') +
+        kv('Tổng nợ quá hạn', '<span style="color:var(--red)">' + money(om.tot, cur) + '</span>') + kv('Số ngày quá hạn', nf0.format(om.days) + ' ngày') +
+        '</dl><p class="muted small">Theo dữ liệu LD42 ngày ' + fdate(state.ld42.reportDate) + (om.n > 1 ? ' (gộp ' + om.n + ' dòng quá hạn của hợp đồng)' : '') + '. Số liệu này tách riêng với Gốc còn lại của LD23.</p></section>';
     }
 
     // Thông tin chung
@@ -604,16 +614,17 @@
       var cl = c[0], cs = c[1], cd = c[2];
       var haveCache = !!(cl && cl.loans && cl.loans.length);
       function ok(x) { return x && x.rows && x.rows.length; }
+      function okL(x) { return ok(x) && x.schema >= 2; }
       if (haveCache) {
         setData(cl);
         if (ok(cs)) setSchedule(cs);
-        if (ok(cd)) setLd42(cd);
+        if (okL(cd)) setLd42(cd);
       } else busy(true, 'Đang tải dữ liệu…');
       return prefetch.then(function (r) {
         var rl = r[0], rs = r[1], rd = r[2], updated = false;
         if (rl && isNewer(rl, haveCache ? cl : null)) { setData(rl); DB.set(rl, 'data'); updated = haveCache; }
         if (ok(rs) && isNewer(rs, ok(cs) ? cs : null)) { setSchedule(rs); DB.set(rs, 'schedule'); updated = updated || haveCache; }
-        if (ok(rd) && isNewer(rd, ok(cd) ? cd : null)) { setLd42(rd); DB.set(rd, 'ld42'); updated = updated || haveCache; }
+        if (okL(rd) && isNewer(rd, okL(cd) ? cd : null)) { setLd42(rd); DB.set(rd, 'ld42'); updated = updated || haveCache; }
         if (!haveCache && !state.loans.length) {
           show($('welcome'), true);
           var box = $('welcome-error');
@@ -621,7 +632,7 @@
           show(box, true);
           // LD42 / lịch đã tải được vẫn giữ để áp dụng khi nạp LD23
           if (ok(rs)) setSchedule(rs);
-          if (ok(rd)) setLd42(rd);
+          if (okL(rd)) setLd42(rd);
         }
         if (updated) toast('Đã cập nhật dữ liệu mới nhất');
       });

@@ -169,7 +169,8 @@
   }
 
   /* ---------- File LD42 – Truy vấn nợ quá hạn phải trả ---------- */
-  var LCOLS = { contract: ['Số hợp đồng', 6], custId: ['Mã khách hàng', 4], days: ['Số ngày quá hạn', 24] };
+  var LCOLS = { contract: ['Số hợp đồng', 6], custId: ['Mã khách hàng', 4], days: ['Số ngày quá hạn', 24],
+    pr: ['Tổng PR phải trả', 8], inn: ['Tổng IN phải trả', 9], pe: ['Tổng PE phải trả', 10], ps: ['Tổng PS phải trả', 11], tot: ['Tổng phải trả', 12] };
   function findLd42Header(aoa) {
     for (var i = 0; i < Math.min(aoa.length, 30); i++) {
       var row = (aoa[i] || []).map(str);
@@ -187,23 +188,27 @@
     for (var i = h + 1; i < aoa.length; i++) {
       var r = aoa[i];
       if (!r || !str(r[idx.contract])) continue;
-      rows.push({ contract: str(r[idx.contract]), custId: str(r[idx.custId]), days: Math.max(0, Math.round(num(r[idx.days]))) });
+      rows.push({ contract: str(r[idx.contract]), custId: str(r[idx.custId]), days: Math.max(0, Math.round(num(r[idx.days]))),
+                  pr: num(r[idx.pr]), inn: num(r[idx.inn]), pe: num(r[idx.pe]), ps: num(r[idx.ps]), tot: num(r[idx.tot]) });
     }
-    return { rows: rows, reportDate: findReportDate(aoa) };
+    return { rows: rows, reportDate: findReportDate(aoa), schema: 2 };
   }
   /** Ghép LD42 với hợp đồng LD23 → { mã HĐ chính: số ngày quá hạn lớn nhất }. Số hợp đồng LD42 có tiền tố PD
    *  (ví dụ PDMG…): trùng với mã dòng PD liên quan trong LD23 (hoặc mã hợp đồng chính nếu LD23 không có dòng chính). */
   function matchLd42(loans, rows) {
     var by = {}, out = {};
-    rows.forEach(function (r) { by[r.contract] = Math.max(by[r.contract] || 0, r.days); });
+    rows.forEach(function (r) { by[r.contract] = r; });
     loans.forEach(function (l) {
-      var ids = [l.id, l.contract, 'PD' + l.id].concat((l.related || []).map(function (x) { return x.contract; })), best = null;
-      ids.forEach(function (c) { if (by[c] != null && (best == null || by[c] > best)) best = by[c]; });
-      if (best != null) out[l.id] = best;
+      var ids = [l.id, l.contract, 'PD' + l.id].concat((l.related || []).map(function (x) { return x.contract; })), seen = {}, agg = null;
+      ids.forEach(function (c) {
+        var r = by[c]; if (!r || seen[c]) return; seen[c] = 1;
+        if (!agg) agg = { days: 0, pr: 0, inn: 0, pe: 0, ps: 0, tot: 0, n: 0 };
+        agg.days = Math.max(agg.days, r.days); agg.pr += r.pr || 0; agg.inn += r.inn || 0; agg.pe += r.pe || 0; agg.ps += r.ps || 0; agg.tot += r.tot || 0; agg.n++;
+      });
+      if (agg) out[l.id] = agg;
     });
     return out;
   }
-
   /** Nhận diện loại file: lịch trả nợ hay sao kê LD23. */
   function parseAny(XLSX, data) {
     var wb = XLSX.read(data, { type: 'array', dense: true });
