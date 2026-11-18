@@ -287,3 +287,5 @@ tr.official td { background: var(--green-bg); font-weight: 600; }
 .cb-list .ct { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .cb-empty { color: var(--muted); font-size: 13px; padding: 10px 6px; }
 @media (max-width: 860px) { body.detail-open .cb-filter { display: none; } }
+
+.load-ico.c { background: linear-gradient(135deg, #d97706, #f59e0b); }

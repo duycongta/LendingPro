@@ -167,14 +167,52 @@
     });
     return out;
   }
+
+  /* ---------- File LD42 – Truy vấn nợ quá hạn phải trả ---------- */
+  var LCOLS = { contract: ['Số hợp đồng', 6], custId: ['Mã khách hàng', 4], days: ['Số ngày quá hạn', 24] };
+  function findLd42Header(aoa) {
+    for (var i = 0; i < Math.min(aoa.length, 30); i++) {
+      var row = (aoa[i] || []).map(str);
+      if (row.indexOf('Số hợp đồng') >= 0 && row.indexOf('Số ngày quá hạn') >= 0 && row.indexOf('Tổng PR phải trả') >= 0) return i;
+    }
+    return -1;
+  }
+  /** Chỉ lấy Số hợp đồng (PD + MG/LD…) và Số ngày quá hạn; ngày báo cáo ở dòng đầu file. */
+  function parseLd42(aoa) {
+    var h = findLd42Header(aoa);
+    if (h < 0) throw new Error('Không nhận ra file LD42.');
+    var headers = aoa[h].map(str), idx = {};
+    Object.keys(LCOLS).forEach(function (k) { var at = headers.indexOf(LCOLS[k][0]); idx[k] = at >= 0 ? at : LCOLS[k][1]; });
+    var rows = [];
+    for (var i = h + 1; i < aoa.length; i++) {
+      var r = aoa[i];
+      if (!r || !str(r[idx.contract])) continue;
+      rows.push({ contract: str(r[idx.contract]), custId: str(r[idx.custId]), days: Math.max(0, Math.round(num(r[idx.days]))) });
+    }
+    return { rows: rows, reportDate: findReportDate(aoa) };
+  }
+  /** Ghép LD42 với hợp đồng LD23 → { mã HĐ chính: số ngày quá hạn lớn nhất }. Số hợp đồng LD42 có tiền tố PD
+   *  (ví dụ PDMG…): trùng với mã dòng PD liên quan trong LD23 (hoặc mã hợp đồng chính nếu LD23 không có dòng chính). */
+  function matchLd42(loans, rows) {
+    var by = {}, out = {};
+    rows.forEach(function (r) { by[r.contract] = Math.max(by[r.contract] || 0, r.days); });
+    loans.forEach(function (l) {
+      var ids = [l.id, l.contract, 'PD' + l.id].concat((l.related || []).map(function (x) { return x.contract; })), best = null;
+      ids.forEach(function (c) { if (by[c] != null && (best == null || by[c] > best)) best = by[c]; });
+      if (best != null) out[l.id] = best;
+    });
+    return out;
+  }
+
   /** Nhận diện loại file: lịch trả nợ hay sao kê LD23. */
   function parseAny(XLSX, data) {
     var wb = XLSX.read(data, { type: 'array', dense: true });
     var ws = wb.Sheets[wb.SheetNames[0]];
     var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: false });
     if (findScheduleHeader(aoa) >= 0) return Object.assign({ kind: 'schedule' }, parseSchedule(aoa));
+    if (findLd42Header(aoa) >= 0) return Object.assign({ kind: 'ld42' }, parseLd42(aoa));
     return Object.assign({ kind: 'loans' }, parseRows(aoa));
   }
 
-  return { parseRows: parseRows, parseWorkbook: parseWorkbook, parseSchedule: parseSchedule, matchSchedule: matchSchedule, parseAny: parseAny };
+  return { parseRows: parseRows, parseWorkbook: parseWorkbook, parseSchedule: parseSchedule, matchSchedule: matchSchedule, parseLd42: parseLd42, matchLd42: matchLd42, parseAny: parseAny };
 });

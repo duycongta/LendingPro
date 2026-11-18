@@ -6,7 +6,7 @@
   var PAGE = 60;
 
   var state = { loans: [], byId: {}, reportDate: null, fileName: '', query: '', onlyActive: false,
-                shown: PAGE, results: [], selected: null, sched: null, schedMap: {}, cbSel: {}, cbSearch: '', method: 'equal', showAll: false };
+                shown: PAGE, results: [], selected: null, sched: null, schedMap: {}, ld42: null, ld42Map: {}, cbSel: {}, cbSearch: '', method: 'equal', showAll: false };
 
   /* ---------- tiện ích ---------- */
   function esc(s) {
@@ -80,6 +80,7 @@
     state.stats = computeStats(state.loans);
     buildCbs();
     if (state.sched) state.schedMap = D.matchSchedule(state.loans, state.sched.rows);
+    if (state.ld42) state.ld42Map = D.matchLd42(state.loans, state.ld42.rows);
     show($('welcome'), false); show($('workspace'), true);
     $('q').disabled = false;
     renderStatus(); renderHome();
@@ -121,6 +122,23 @@
     renderStatus();
     if (state.selected && state.byId[state.selected]) renderDetail(state.byId[state.selected]);
   }
+  function setLd42(d) {
+    state.ld42 = d;
+    state.ld42Map = state.loans.length ? D.matchLd42(state.loans, d.rows) : {};
+    renderStatus(); runSearch();
+    if (state.selected && state.byId[state.selected]) renderDetail(state.byId[state.selected]);
+  }
+  /** Số ngày quá hạn: ưu tiên LD42 (mới nhất; không có trong LD42 = không quá hạn), nếu chưa nạp LD42 thì dùng lịch trả nợ hệ thống. */
+  function overdueOf(l) {
+    if (state.ld42) return { days: state.ld42Map[l.id] || 0, src: 'ld42', inFile: state.ld42Map[l.id] != null };
+    var o = state.schedMap[l.id];
+    if (o) return { days: o.odDays || 0, src: 'sched', inFile: true };
+    return null;
+  }
+  function srcOverdue(od) {
+    if (od.src === 'ld42') return 'Theo dữ liệu LD42 · ngày báo cáo ' + fdate(state.ld42.reportDate);
+    return srcSched();
+  }
   function monthLabel(m) { return m ? m.slice(5) + '/' + m.slice(0, 4) : ''; }
 
   function loadFile(file, expect) {
@@ -136,11 +154,18 @@
           parsed.fileName = file.name;
           parsed.updatedAt = new Date().toISOString();
           if (expect && parsed.kind !== expect) {
-            throw new Error(parsed.kind === 'schedule'
-              ? 'Đây là file Lịch trả nợ hệ thống. Hãy nạp ở mục “Lịch trả nợ hệ thống”.'
-              : 'Đây là file Sao kê LD23. Hãy nạp ở mục “Sao kê LD23”.');
+            var NAMES = { loans: 'Sao kê LD23', schedule: 'Lịch trả nợ hệ thống', ld42: 'LD42 – Nợ quá hạn phải trả' };
+            throw new Error('Đây là file ' + NAMES[parsed.kind] + '. Hãy nạp ở mục “' + NAMES[parsed.kind] + '”.');
           }
-          if (parsed.kind === 'schedule') {
+          if (parsed.kind === 'ld42') {
+            if (!parsed.rows.length) throw new Error('File LD42 không có dòng dữ liệu nào.');
+            if (!state.loans.length) throw new Error('Hãy nạp file sao kê LD23 trước, rồi mới nạp file LD42.');
+            delete parsed.kind;
+            setLd42(parsed);
+            DB.set(parsed, 'ld42');
+            pushRemote(parsed, CFG.ld42Path, 'Cập nhật LD42 ngày ' + fdate(parsed.reportDate) + ' (' + parsed.rows.length + ' HĐ quá hạn)');
+            toast('Đã nạp LD42 ngày ' + fdate(parsed.reportDate) + ': ghép được ' + nf0.format(Object.keys(state.ld42Map).length) + '/' + nf0.format(parsed.rows.length) + ' hợp đồng.');
+          } else           if (parsed.kind === 'schedule') {
             if (!parsed.rows.length) throw new Error('File lịch trả nợ không có dòng dữ liệu nào.');
             if (!state.loans.length) throw new Error('Hãy nạp file sao kê LD23 trước, rồi mới nạp file lịch trả nợ.');
             delete parsed.kind;
@@ -277,8 +302,8 @@
     var p = C.paymentSummary(l, state.reportDate, { method: state.method, anchorDue: anchorOf(l) });
     var open = l.balance > 0 || l.relatedBalance > 0;
     if (!open) return { cls: 'gray', text: 'Đã tất toán', p: p };
-    var so = state.schedMap[l.id];
-    if (so && so.odDays > 0) return { cls: 'red', text: 'Quá hạn ' + nf0.format(so.odDays) + ' ngày', p: p };
+    var od = overdueOf(l);
+    if (od && od.days > 0) return { cls: 'red', text: 'Quá hạn ' + nf0.format(od.days) + ' ngày', p: p };
     if (p.pastMaturity) return { cls: 'red', text: 'Quá hạn ' + p.overdueDays + ' ngày', p: p };
     if (parseInt(l.debtGroup, 10) >= 2) return { cls: 'amber', text: 'Nhóm nợ ' + l.debtGroup, p: p };
     return { cls: 'green', text: 'Đang vay', p: p };
@@ -288,7 +313,8 @@
     $('status-line').innerHTML =
       '<span class="dot"></span>' + (state.fileName ? '<b>' + esc(state.fileName) + '</b> · ' : '') + (state.updatedAt ? 'cập nhật ' + esc(state.updatedAt.replace('T', ' ').slice(0, 16)) + ' · ' : '') +
       'Ngày báo cáo <b>' + fdate(state.reportDate) + '</b> · ' + nf0.format(state.loans.length) + ' hợp đồng' +
-      (state.sched ? ' · Lịch trả nợ <b>T' + monthLabel(state.sched.month) + '</b> (' + nf0.format(state.sched.rows.length) + ' khoản)' : '');
+      (state.sched ? ' · Lịch trả nợ <b>T' + monthLabel(state.sched.month) + '</b> (' + nf0.format(state.sched.rows.length) + ' khoản)' : '') +
+      (state.ld42 ? ' · LD42 <b>' + fdate(state.ld42.reportDate) + '</b> (' + nf0.format(state.ld42.rows.length) + ' HĐ quá hạn)' : '');
   }
 
   function renderList() {
@@ -366,6 +392,8 @@
       '<div class="stat"><span>Kỳ hạn</span><b>' + (sch.months ? sch.months + ' tháng' : '—') + '</b><small>' + esc(C.termLabel(l.termName)) +
       (sch.derived ? ' · suy ra từ ngày mở/đáo hạn' : '') + '</small></div></div>';
 
+    var odi = overdueOf(l);
+    if (odi && odi.days > 0) h += '<p class="warn" style="margin:0 0 14px">⚠ Đang quá hạn <b>' + nf0.format(odi.days) + ' ngày</b> (' + srcOverdue(odi).replace('Theo dữ liệu ', 'theo ') + ').</p>';
     // Số tiền phải trả hàng tháng
     var off = state.schedMap[l.id];
     if (off) {
@@ -374,7 +402,6 @@
         '<div class="big">' + money(off.tot, cur) + '</div></div>' +
         '<div class="pay-split"><div><span>Gốc</span><b>' + money(off.goc, cur) + '</b></div>' +
         '<div><span>Lãi</span><b>' + money(off.lai, cur) + '</b></div></div></div>' +
-        (off.odDays > 0 ? '<p class="warn" style="margin-top:10px">⚠ Đang quá hạn <b>' + nf0.format(off.odDays) + ' ngày</b> (' + srcSched().replace('Theo dữ liệu ', 'theo ') + ').</p>' : '') +
         '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
     } else {
       h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag est">Ước tính</span></div>';
@@ -411,7 +438,7 @@
     // Thông tin chung
     h += '<section class="card"><h3>Thông tin khoản vay</h3><dl class="grid">' +
       kv('Mã HĐ chính', esc(l.id)) + kv('ID khách hàng', esc(l.custId)) +
-      (state.schedMap[l.id] ? kv('Số ngày quá hạn', (state.schedMap[l.id].odDays > 0 ? '<span style="color:var(--red)">' + nf0.format(state.schedMap[l.id].odDays) + ' ngày</span>' : '0 ngày') + '<small class="sub">' + srcSched() + '</small>') : '') +
+      (odi ? kv('Số ngày quá hạn', (odi.days > 0 ? '<span style="color:var(--red)">' + nf0.format(odi.days) + ' ngày</span>' : '0 ngày') + '<small class="sub">' + srcOverdue(odi) + (odi.src === 'ld42' && !odi.inFile ? ' · không có trong LD42' : '') + '</small>') : '') +
       kv('Ngày vay (ngày mở)', fdate(l.openDate)) + kv('Ngày kết thúc', fdate(l.maturityDate)) +
       kv('Gốc đến hạn lũy kế (cột P)', money(l.due, cur)) +
       kv('Gốc đã trả', money(totalPaid, cur) + (relPaid > 0 ? '<small class="sub">HĐ chính ' + money(l.paid, cur) + ' + khoản liên quan ' + money(relPaid, cur) + '</small>' : '')) +
@@ -525,20 +552,24 @@
     if (e.key === 'Escape' && document.body.classList.contains('detail-open') && document.activeElement !== $('q')) { if (location.hash) history.back(); else closeDetail(); }
   });
 
-  var inLd = $('file-ld23'), inSc = $('file-sched'), loadDlg = $('load-dlg');
+  var inLd = $('file-ld23'), inSc = $('file-sched'), inLd42 = $('file-ld42'), loadDlg = $('load-dlg');
   function loadStatus() {
     $('st-ld23').textContent = state.loans.length ? '✓ ' + (state.fileName || 'Đã nạp') + ' · ' + nf0.format(state.loans.length) + ' hợp đồng' : 'Chưa nạp';
     $('st-sched').textContent = state.sched ? '✓ Tháng ' + monthLabel(state.sched.month) + ' · ' + nf0.format(state.sched.rows.length) + ' khoản' : (state.loans.length ? 'Chưa nạp' : 'Nạp Sao kê LD23 trước');
+    $('st-ld42').textContent = state.ld42 ? '✓ Ngày ' + fdate(state.ld42.reportDate) + ' · ' + nf0.format(state.ld42.rows.length) + ' hợp đồng quá hạn' : (state.loans.length ? 'Chưa nạp' : 'Nạp Sao kê LD23 trước');
+    $('opt-ld42').disabled = !state.loans.length; $('opt-ld42').style.opacity = state.loans.length ? '' : '.55';
     $('opt-sched').disabled = !state.loans.length;
     $('opt-sched').style.opacity = state.loans.length ? '' : '.55';
   }
   $('load-btn').addEventListener('click', function () { loadStatus(); loadDlg.showModal(); });
   $('opt-ld23').addEventListener('click', function () { loadDlg.close(); inLd.click(); });
   $('opt-sched').addEventListener('click', function () { loadDlg.close(); inSc.click(); });
+  $('opt-ld42').addEventListener('click', function () { loadDlg.close(); inLd42.click(); });
   $('pick-btn').addEventListener('click', function (e) { e.stopPropagation(); inLd.click(); });
   $('drop').addEventListener('click', function () { inLd.click(); });
   $('drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inLd.click(); } });
   inLd.addEventListener('change', function () { loadFile(inLd.files[0], 'loans'); inLd.value = ''; });
+  inLd42.addEventListener('change', function () { loadFile(inLd42.files[0], 'ld42'); inLd42.value = ''; });
   inSc.addEventListener('change', function () { loadFile(inSc.files[0], 'schedule'); inSc.value = ''; });
   ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); document.body.classList.add('dragging'); }); });
   ['dragleave', 'drop'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); if (ev === 'drop' || e.target === document.documentElement || !e.relatedTarget) document.body.classList.remove('dragging'); }); });
@@ -561,12 +592,17 @@
     return fetchRemote(CFG.schedulePath, 'rows').catch(function () { return DB.get('schedule'); })
       .then(function (sc) { if (sc && sc.rows && sc.rows.length) setSchedule(sc); }).catch(function () {});
   }
+  function loadLd42() {
+    return fetchRemote(CFG.ld42Path, 'rows').catch(function () { return DB.get('ld42'); })
+      .then(function (d) { if (d && d.rows && d.rows.length) setLd42(d); }).catch(function () {});
+  }
+  function loadExtras() { return loadSchedule().then(loadLd42); }
   var loadErr = '';
   busy(true, 'Đang tải dữ liệu…');
-  fetchRemote().then(setData).then(loadSchedule).catch(function (e) {
+  fetchRemote().then(setData).then(loadExtras).catch(function (e) {
     loadErr = (e && e.message) ? e.message : '';
     return DB.get().then(function (saved) {
-      if (saved && saved.loans && saved.loans.length) setData(saved);
+      if (saved && saved.loans && saved.loans.length) { setData(saved); return loadExtras(); }
       else {
         show($('welcome'), true);
         var box = $('welcome-error');
