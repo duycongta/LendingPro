@@ -24,6 +24,7 @@
     paid:      ['Gốc đã trả', 16],
     balance:   ['Gốc còn lại', 17],
     interestLeft: ['Lãi còn lại', 20],
+    penaltyLeft: ['PEPS còn lại', 23],
     debtGroup: ['Nhóm nợ', 24],
     branch:    ['Tên chi nhánh', 27],
     product:   ['Tên sản phẩm', 31],
@@ -66,7 +67,7 @@
       openDate: toISO(g('openDate')), maturityDate: toISO(g('maturity')),
       rate: num(g('rate')), term: str(g('term')), termName: str(g('termName')),
       principal: num(g('principal')), due: num(g('due')), paid: num(g('paid')), balance: num(g('balance')),
-      interestLeft: num(g('interestLeft')), debtGroup: str(g('debtGroup')), branch: str(g('branch')),
+      interestLeft: num(g('interestLeft')), penaltyLeft: num(g('penaltyLeft')), debtGroup: str(g('debtGroup')), branch: str(g('branch')),
       product: str(g('product')), portCode: str(g('portCode')), portName: str(g('portName')),
       saleId: str(g('saleId')), saleName: str(g('saleName'))
     };

@@ -297,15 +297,20 @@
   function anchorOf(l) { var o = state.schedMap[l.id]; return o ? o.due : null; }
   /** Lãi còn lại (phải thu chưa thu) theo LD23, gồm cả khoản liên quan. */
   function interestLeftOf(l) { return (l.interestLeft || 0) + (l.related || []).reduce(function (a, r) { return a + (r.interestLeft || 0); }, 0); }
+  /** Lãi phạt còn lại (PEPS còn lại) theo LD23; undefined nếu dữ liệu LD23 đang dùng chưa có cột này. */
+  function penaltyLeftOf(l) {
+    if (typeof l.penaltyLeft !== 'number') return undefined;
+    return l.penaltyLeft + (l.related || []).reduce(function (a, r) { return a + (r.penaltyLeft || 0); }, 0);
+  }
   function hasPrincipal(l) { return l.balance > 0 || l.relatedBalance > 0; }
   /** Còn nợ nói chung: còn gốc, hoặc (hết gốc nhưng) còn quá hạn theo LD42 / còn lãi chưa thu theo LD23. */
-  function hasDebt(l) { var od = overdueOf(l); return hasPrincipal(l) || !!(od && od.days > 0) || interestLeftOf(l) > 0; }
+  function hasDebt(l) { var od = overdueOf(l); return hasPrincipal(l) || !!(od && od.days > 0) || interestLeftOf(l) > 0 || (penaltyLeftOf(l) || 0) > 0; }
   function statusOf(l) {
     var p = C.paymentSummary(l, state.reportDate, { method: state.method, anchorDue: anchorOf(l) });
     var od = overdueOf(l);
     if (od && od.days > 0) return { cls: 'red', text: 'Quá hạn ' + nf0.format(od.days) + ' ngày', p: p };
     if (!hasPrincipal(l)) {
-      if (interestLeftOf(l) > 0) return { cls: 'amber', text: 'Còn lãi chưa thu', p: p };
+      if (interestLeftOf(l) > 0 || (penaltyLeftOf(l) || 0) > 0) return { cls: 'amber', text: 'Còn lãi chưa thu', p: p };
       return { cls: 'gray', text: l.principal > 0 ? 'Đã tất toán' : 'Không có dư nợ', p: p };
     }
     if (p.pastMaturity) return { cls: 'red', text: 'Quá hạn ' + p.overdueDays + ' ngày', p: p };
@@ -409,7 +414,8 @@
         '<div><span>Lãi</span><b>' + money(off.lai, cur) + '</b></div></div></div>' +
         '<p class="muted small">Số TK <b>' + esc(off.tk) + '</b>' + (off.fee > 0 ? ' · Tổng đã gồm phí bảo hiểm ' + money(off.fee, cur) : '') + '</p></section>';
     } else {
-      h += '<section class="card pay"><div class="card-h"><h3>Số tiền phải trả hàng tháng</h3><span class="tag est">Ước tính</span></div>';
+      var closedDebt = closed && ((odi && odi.days > 0 && odi.m) || interestLeftOf(l) > 0 || (penaltyLeftOf(l) || 0) > 0);
+      h += '<section class="card pay"><div class="card-h"><h3>' + (closedDebt ? 'Lãi / lãi phạt còn phải thu' : 'Số tiền phải trả hàng tháng') + '</h3>' + (closedDebt ? '' : '<span class="tag est">Ước tính</span>') + '</div>';
       if (state.sched && !closed && sch.rows.length) h += '<p class="muted small" style="margin:0 0 10px">Khoản này không có trong lịch trả nợ T' + monthLabel(state.sched.month) + ' của hệ thống nên app chỉ tính ước tính.</p>';
       if (!closed && sch.rows.length) {
         var thisMonth = state.reportDate.slice(0, 7), passed = sch.rows.filter(function (x) { return x.date.slice(0, 7) === thisMonth && x.date < state.reportDate; })[0];
@@ -422,9 +428,22 @@
     } else if (mainDone) {
       h += '<p class="warn">Phần gốc của hợp đồng chính đã đến hạn hết. Còn nợ gốc quá hạn ở khoản liên quan: <b>' + money(relBal, cur) + '</b>.</p>';
     } else if (closed) {
-      var ilf = interestLeftOf(l);
-      if (odi && odi.days > 0) h += '<p class="warn">Không còn dư nợ gốc nhưng <b>vẫn còn nợ quá hạn ' + nf0.format(odi.days) + ' ngày</b>' + (odi.m ? ': lãi ' + money(odi.m.inn, cur) + ', lãi phạt ' + money(odi.m.pe + odi.m.ps, cur) + (odi.m.pr > 0 ? ', gốc ' + money(odi.m.pr, cur) : '') : '') + ' (theo dữ liệu LD42 ngày ' + fdate(state.ld42.reportDate) + ').</p>';
-      else if (ilf > 0) h += '<p class="note-amber">Không còn dư nợ gốc nhưng <b>còn lãi chưa thu ' + money(ilf, cur) + '</b> (theo dữ liệu LD23 ngày ' + fdate(state.reportDate) + ').</p>';
+      var ilf = interestLeftOf(l), plf = penaltyLeftOf(l);
+      if ((odi && odi.days > 0 && odi.m) || ilf > 0 || (plf || 0) > 0) {
+        var useLd42 = !!(odi && odi.m), lai, phat, tong, src;
+        if (useLd42) {
+          lai = odi.m.inn; phat = odi.m.pe + odi.m.ps; tong = odi.m.tot;
+          src = 'Theo dữ liệu LD42 · ngày báo cáo ' + fdate(state.ld42.reportDate) + ' · quá hạn ' + nf0.format(odi.days) + ' ngày' + (odi.m.pr > 0 ? ' · gồm gốc quá hạn ' + money(odi.m.pr, cur) : '');
+        } else {
+          lai = ilf; phat = plf || 0; tong = lai + phat;
+          src = 'Theo dữ liệu LD23 · ngày báo cáo ' + fdate(state.reportDate) + (state.ld42 ? ' · không có trong LD42 (không quá hạn)' : '') + (plf === undefined ? ' · chưa có cột lãi phạt trong dữ liệu LD23 đang dùng' : '');
+        }
+        h += '<p class="muted small" style="margin:0 0 8px">Hợp đồng đã hết dư nợ gốc nhưng <b>vẫn còn lãi / lãi phạt chưa thu</b>:</p>' +
+          '<div class="pay-main"><div><span class="lbl">Tổng còn phải thu</span><div class="big" style="color:var(--red)">' + money(tong, cur) + '</div></div>' +
+          '<div class="pay-split"><div><span>Lãi còn lại</span><b>' + money(lai, cur) + '</b></div>' +
+          (useLd42 || plf !== undefined ? '<div><span>Lãi phạt còn lại</span><b>' + money(phat, cur) + '</b></div>' : '') + '</div></div>' +
+          '<p class="muted small">' + src + '</p>';
+      }
       else h += '<p class="muted">' + (l.principal > 0 ? 'Hợp đồng đã tất toán' : 'Hợp đồng không có dư nợ') + ' – không phát sinh khoản phải trả.</p>';
     } else if (p.pastMaturity) {
       h += '<p class="warn">Đã quá ngày đáo hạn ' + fdate(l.maturityDate) + ' (' + p.overdueDays + ' ngày) mà vẫn còn dư nợ gốc <b>' + money(l.balance, cur) + '</b>.</p>';
@@ -444,7 +463,7 @@
     }
 
     // Nợ quá hạn theo LD42
-    if (odi && odi.src === 'ld42' && odi.m) {
+    if (odi && odi.src === 'ld42' && odi.m && !closed) {
       var om = odi.m;
       h += '<section class="card"><div class="card-h"><h3>Nợ quá hạn phải trả</h3><span class="tag est">LD42 · ' + fdate(state.ld42.reportDate) + '</span></div><dl class="grid">' +
         kv('Gốc quá hạn', money(om.pr, cur)) + kv('Lãi quá hạn', money(om.inn, cur)) +
