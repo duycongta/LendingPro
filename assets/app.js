@@ -580,32 +580,42 @@
   $('token-clear').addEventListener('click', function () { try { localStorage.removeItem('lp_token'); } catch (e) {} $('token').value = ''; $('settings-msg').textContent = 'Đã xóa token.'; });
 
   /* ---------- khởi động ---------- */
-  function start() {
-  // 1) data/loans.json mới nhất trên GitHub; 2) bản đã lưu trong trình duyệt; 3) màn hình nạp file
-  function loadSchedule() {
-    return fetchRemote(CFG.schedulePath, 'rows').catch(function () { return DB.get('schedule'); })
-      .then(function (sc) { if (sc && sc.rows && sc.rows.length) setSchedule(sc); }).catch(function () {});
-  }
-  function loadLd42() {
-    return fetchRemote(CFG.ld42Path, 'rows').catch(function () { return DB.get('ld42'); })
-      .then(function (d) { if (d && d.rows && d.rows.length) setLd42(d); }).catch(function () {});
-  }
-  var extrasDone = false;
-  function loadExtras() { if (extrasDone) return Promise.resolve(); extrasDone = true; return loadSchedule().then(loadLd42); }
+  // Tải sẵn 3 file song song ngay khi mở trang (trong lúc người dùng nhập PIN). Dữ liệu đã lưu trên máy (IndexedDB)
+  // hiện ngay; bản trên GitHub tải ở nền và chỉ thay khi mới hơn (so theo updatedAt).
   var loadErr = '';
-  busy(true, 'Đang tải dữ liệu…');
-  fetchRemote().then(setData).then(loadExtras).catch(function (e) {
-    loadErr = (e && e.message) ? e.message : '';
-    return DB.get().then(function (saved) {
-      if (saved && saved.loans && saved.loans.length) { setData(saved); return loadExtras(); }
-      else {
-        show($('welcome'), true);
-        var box = $('welcome-error');
-        box.textContent = '⚠ Không tải được dữ liệu từ GitHub' + (loadErr ? ' (' + loadErr + ')' : '') + '. Hãy chọn file LD23 để nạp trực tiếp, hoặc tải lại trang.';
-        show(box, true);
-      }
-    });
-  }).then(loadExtras).then(function () { busy(false); });
+  var prefetch = Promise.all([
+    fetchRemote(CFG.path, 'loans').catch(function (e) { loadErr = (e && e.message) ? e.message : ''; return null; }),
+    fetchRemote(CFG.schedulePath, 'rows').catch(function () { return null; }),
+    fetchRemote(CFG.ld42Path, 'rows').catch(function () { return null; })
+  ]);
+  function isNewer(remote, cached) { return !cached || String(remote.updatedAt || '') > String(cached.updatedAt || ''); }
+  function start() {
+    Promise.all([DB.get('data'), DB.get('schedule'), DB.get('ld42')]).then(function (c) {
+      var cl = c[0], cs = c[1], cd = c[2];
+      var haveCache = !!(cl && cl.loans && cl.loans.length);
+      function ok(x) { return x && x.rows && x.rows.length; }
+      if (haveCache) {
+        setData(cl);
+        if (ok(cs)) setSchedule(cs);
+        if (ok(cd)) setLd42(cd);
+      } else busy(true, 'Đang tải dữ liệu…');
+      return prefetch.then(function (r) {
+        var rl = r[0], rs = r[1], rd = r[2], updated = false;
+        if (rl && isNewer(rl, haveCache ? cl : null)) { setData(rl); DB.set(rl, 'data'); updated = haveCache; }
+        if (ok(rs) && isNewer(rs, ok(cs) ? cs : null)) { setSchedule(rs); DB.set(rs, 'schedule'); updated = updated || haveCache; }
+        if (ok(rd) && isNewer(rd, ok(cd) ? cd : null)) { setLd42(rd); DB.set(rd, 'ld42'); updated = updated || haveCache; }
+        if (!haveCache && !state.loans.length) {
+          show($('welcome'), true);
+          var box = $('welcome-error');
+          box.textContent = '⚠ Không tải được dữ liệu từ GitHub' + (loadErr ? ' (' + loadErr + ')' : '') + '. Hãy chọn file LD23 để nạp trực tiếp, hoặc tải lại trang.';
+          show(box, true);
+          // LD42 / lịch đã tải được vẫn giữ để áp dụng khi nạp LD23
+          if (ok(rs)) setSchedule(rs);
+          if (ok(rd)) setLd42(rd);
+        }
+        if (updated) toast('Đã cập nhật dữ liệu mới nhất');
+      });
+    }).catch(function () { show($('welcome'), true); }).then(function () { busy(false); });
   }
 
   /* ---------- mã PIN ---------- */
