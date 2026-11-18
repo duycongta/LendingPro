@@ -174,7 +174,7 @@ svg { fill: currentColor; }
   .list-tools { top: 64px; border-radius: var(--radius) var(--radius) 0 0; }
   .detail-pane { display: none; }
   body.detail-open .detail-pane { display: block; }
-  body.detail-open .list-pane, body.detail-open .status-line { display: none; }
+  body.detail-open .list-pane { display: none; }
   .back { display: inline-flex; }
   .placeholder { display: none; }
 }
@@ -289,3 +289,7 @@ tr.official td { background: var(--green-bg); font-weight: 600; }
 @media (max-width: 860px) { body.detail-open .cb-filter { display: none; } }
 
 .load-ico.c { background: linear-gradient(135deg, #d97706, #f59e0b); }
+
+/* ---------- Chân trang: dữ liệu đang dùng ---------- */
+.data-foot { margin: 28px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.7; text-align: center; }
+.data-foot b { color: var(--text); font-weight: 650; }

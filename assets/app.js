@@ -308,11 +308,12 @@
   }
 
   function renderStatus() {
-    $('status-line').innerHTML =
-      '<span class="dot"></span>' + (state.fileName ? '<b>' + esc(state.fileName) + '</b> · ' : '') + (state.updatedAt ? 'cập nhật ' + esc(state.updatedAt.replace('T', ' ').slice(0, 16)) + ' · ' : '') +
-      'Ngày báo cáo <b>' + fdate(state.reportDate) + '</b> · ' + nf0.format(state.loans.length) + ' hợp đồng' +
-      (state.sched ? ' · Lịch trả nợ <b>T' + monthLabel(state.sched.month) + '</b> (' + nf0.format(state.sched.rows.length) + ' khoản)' : '') +
-      (state.ld42 ? ' · LD42 <b>' + fdate(state.ld42.reportDate) + '</b> (' + nf0.format(state.ld42.rows.length) + ' HĐ quá hạn)' : '');
+    var rows = [
+      ['LD23', state.loans.length ? 'Ngày ' + fdate(state.reportDate) + ' - ' + nf0.format(state.loans.length) + ' HĐ' : 'chưa nạp'],
+      ['LD42', state.ld42 ? 'Ngày ' + fdate(state.ld42.reportDate) + ' - ' + nf0.format(state.ld42.rows.length) + ' HĐ quá hạn' : 'chưa nạp'],
+      ['Lịch trả nợ', state.sched ? 'T' + monthLabel(state.sched.month) + ' - ' + nf0.format(state.sched.rows.length) + ' khoản' : 'chưa nạp']
+    ];
+    $('data-foot').innerHTML = rows.map(function (r) { return '<div><b>' + r[0] + ':</b> ' + esc(r[1]) + '</div>'; }).join('');
   }
 
   function renderList() {
