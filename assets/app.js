@@ -159,21 +159,19 @@
           }
           if (parsed.kind === 'ld42') {
             if (!parsed.rows.length) throw new Error('File LD42 không có dòng dữ liệu nào.');
-            if (!state.loans.length) throw new Error('Hãy nạp file sao kê LD23 trước, rồi mới nạp file LD42.');
             delete parsed.kind;
             setLd42(parsed);
             DB.set(parsed, 'ld42');
             pushRemote(parsed, CFG.ld42Path, 'Cập nhật LD42 ngày ' + fdate(parsed.reportDate) + ' (' + parsed.rows.length + ' HĐ quá hạn)');
-            toast('Đã nạp LD42 ngày ' + fdate(parsed.reportDate) + ': ghép được ' + nf0.format(Object.keys(state.ld42Map).length) + '/' + nf0.format(parsed.rows.length) + ' hợp đồng.');
+            toast(state.loans.length ? 'Đã nạp LD42 ngày ' + fdate(parsed.reportDate) + ': ghép được ' + nf0.format(Object.keys(state.ld42Map).length) + '/' + nf0.format(parsed.rows.length) + ' hợp đồng.' : 'Đã nạp LD42 ngày ' + fdate(parsed.reportDate) + '. Sẽ áp dụng khi có dữ liệu LD23.');
           } else           if (parsed.kind === 'schedule') {
             if (!parsed.rows.length) throw new Error('File lịch trả nợ không có dòng dữ liệu nào.');
-            if (!state.loans.length) throw new Error('Hãy nạp file sao kê LD23 trước, rồi mới nạp file lịch trả nợ.');
             delete parsed.kind;
             setSchedule(parsed);
             DB.set(parsed, 'schedule');
             pushRemote(parsed, CFG.schedulePath, 'Cập nhật lịch trả nợ tháng ' + monthLabel(parsed.month) + ' (' + parsed.rows.length + ' khoản)');
             var n = Object.keys(state.schedMap).length;
-            toast('Đã nạp lịch trả nợ ' + monthLabel(parsed.month) + ': ghép được ' + nf0.format(n) + '/' + nf0.format(parsed.rows.length) + ' khoản.');
+            toast(state.loans.length ? 'Đã nạp lịch trả nợ ' + monthLabel(parsed.month) + ': ghép được ' + nf0.format(n) + '/' + nf0.format(parsed.rows.length) + ' khoản.' : 'Đã nạp lịch trả nợ ' + monthLabel(parsed.month) + '. Sẽ áp dụng khi có dữ liệu LD23.');
           } else {
             if (!parsed.loans.length) throw new Error('File không có dòng dữ liệu nào.');
             delete parsed.kind;
@@ -554,12 +552,9 @@
 
   var inLd = $('file-ld23'), inSc = $('file-sched'), inLd42 = $('file-ld42'), loadDlg = $('load-dlg');
   function loadStatus() {
-    $('st-ld23').textContent = state.loans.length ? '✓ ' + (state.fileName || 'Đã nạp') + ' · ' + nf0.format(state.loans.length) + ' hợp đồng' : 'Chưa nạp';
-    $('st-sched').textContent = state.sched ? '✓ Tháng ' + monthLabel(state.sched.month) + ' · ' + nf0.format(state.sched.rows.length) + ' khoản' : (state.loans.length ? 'Chưa nạp' : 'Nạp Sao kê LD23 trước');
-    $('st-ld42').textContent = state.ld42 ? '✓ Ngày ' + fdate(state.ld42.reportDate) + ' · ' + nf0.format(state.ld42.rows.length) + ' hợp đồng quá hạn' : (state.loans.length ? 'Chưa nạp' : 'Nạp Sao kê LD23 trước');
-    $('opt-ld42').disabled = !state.loans.length; $('opt-ld42').style.opacity = state.loans.length ? '' : '.55';
-    $('opt-sched').disabled = !state.loans.length;
-    $('opt-sched').style.opacity = state.loans.length ? '' : '.55';
+    $('st-ld23').textContent = state.loans.length ? '✓ ' + (state.fileName || 'Đã nạp') + ' · ngày báo cáo ' + fdate(state.reportDate) + ' · ' + nf0.format(state.loans.length) + ' hợp đồng' : 'Chưa nạp';
+    $('st-sched').textContent = state.sched ? '✓ Tháng ' + monthLabel(state.sched.month) + ' · ' + nf0.format(state.sched.rows.length) + ' khoản' : 'Chưa nạp';
+    $('st-ld42').textContent = state.ld42 ? '✓ Ngày ' + fdate(state.ld42.reportDate) + ' · ' + nf0.format(state.ld42.rows.length) + ' hợp đồng quá hạn' : 'Chưa nạp';
   }
   $('load-btn').addEventListener('click', function () { loadStatus(); loadDlg.showModal(); });
   $('opt-ld23').addEventListener('click', function () { loadDlg.close(); inLd.click(); });
@@ -596,7 +591,8 @@
     return fetchRemote(CFG.ld42Path, 'rows').catch(function () { return DB.get('ld42'); })
       .then(function (d) { if (d && d.rows && d.rows.length) setLd42(d); }).catch(function () {});
   }
-  function loadExtras() { return loadSchedule().then(loadLd42); }
+  var extrasDone = false;
+  function loadExtras() { if (extrasDone) return Promise.resolve(); extrasDone = true; return loadSchedule().then(loadLd42); }
   var loadErr = '';
   busy(true, 'Đang tải dữ liệu…');
   fetchRemote().then(setData).then(loadExtras).catch(function (e) {
@@ -610,7 +606,7 @@
         show(box, true);
       }
     });
-  }).then(function () { busy(false); });
+  }).then(loadExtras).then(function () { busy(false); });
   }
 
   /* ---------- mã PIN ---------- */
