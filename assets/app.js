@@ -438,7 +438,6 @@
       kv('Mã HĐ chính', esc(l.id)) + kv('ID khách hàng', esc(l.custId)) +
       (odi ? kv('Số ngày quá hạn', (odi.days > 0 ? '<span style="color:var(--red)">' + nf0.format(odi.days) + ' ngày</span>' : '0 ngày') + '<small class="sub">' + srcOverdue(odi) + (odi.src === 'ld42' && !odi.inFile ? ' · không có trong LD42' : '') + '</small>') : '') +
       kv('Ngày vay (ngày mở)', fdate(l.openDate)) + kv('Ngày kết thúc', fdate(l.maturityDate)) +
-      kv('Gốc đến hạn lũy kế (cột P)', money(l.due, cur)) +
       kv('Gốc đã trả', money(totalPaid, cur) + (relPaid > 0 ? '<small class="sub">HĐ chính ' + money(l.paid, cur) + ' + khoản liên quan ' + money(relPaid, cur) + '</small>' : '')) +
       (relBal > 0 ? kv('Gốc còn lại', money(totalRemain, cur) + '<small class="sub">Chưa đến hạn ' + money(l.balance, cur) + ' + quá hạn/khoản liên quan ' + money(relBal, cur) + '</small>', 'wide') : '') +
       kv('Sản phẩm', esc(l.product), 'wide') +
