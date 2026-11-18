@@ -293,3 +293,5 @@ tr.official td { background: var(--green-bg); font-weight: 600; }
 /* ---------- Chân trang: dữ liệu đang dùng ---------- */
 .data-foot { margin: 28px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; line-height: 1.7; text-align: center; }
 .data-foot b { color: var(--text); font-weight: 650; }
+
+.note-amber { color: var(--amber); background: var(--amber-bg); padding: 10px 14px; border-radius: 12px; }

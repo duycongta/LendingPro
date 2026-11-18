@@ -246,7 +246,7 @@
         return tokens.every(function (t) { return l.search.indexOf(t) >= 0; });
       });
     }
-    if (state.onlyActive) out = out.filter(function (l) { return l.balance > 0 || l.relatedBalance > 0; });
+    if (state.onlyActive) out = out.filter(hasDebt);
     var exact = q;
     out.sort(function (a, b) {
       var ea = (a.custId === exact || a.id === exact) ? 1 : 0, eb = (b.custId === exact || b.id === exact) ? 1 : 0;
@@ -295,12 +295,19 @@
     return v ? esc(v) + '<small class="sub">' + srcSched() + '</small>' : '—<small class="sub">Chưa có trong Lịch trả nợ hệ thống</small>';
   }
   function anchorOf(l) { var o = state.schedMap[l.id]; return o ? o.due : null; }
+  /** Lãi còn lại (phải thu chưa thu) theo LD23, gồm cả khoản liên quan. */
+  function interestLeftOf(l) { return (l.interestLeft || 0) + (l.related || []).reduce(function (a, r) { return a + (r.interestLeft || 0); }, 0); }
+  function hasPrincipal(l) { return l.balance > 0 || l.relatedBalance > 0; }
+  /** Còn nợ nói chung: còn gốc, hoặc (hết gốc nhưng) còn quá hạn theo LD42 / còn lãi chưa thu theo LD23. */
+  function hasDebt(l) { var od = overdueOf(l); return hasPrincipal(l) || !!(od && od.days > 0) || interestLeftOf(l) > 0; }
   function statusOf(l) {
     var p = C.paymentSummary(l, state.reportDate, { method: state.method, anchorDue: anchorOf(l) });
-    var open = l.balance > 0 || l.relatedBalance > 0;
-    if (!open) return { cls: 'gray', text: 'Đã tất toán', p: p };
     var od = overdueOf(l);
     if (od && od.days > 0) return { cls: 'red', text: 'Quá hạn ' + nf0.format(od.days) + ' ngày', p: p };
+    if (!hasPrincipal(l)) {
+      if (interestLeftOf(l) > 0) return { cls: 'amber', text: 'Còn lãi chưa thu', p: p };
+      return { cls: 'gray', text: l.principal > 0 ? 'Đã tất toán' : 'Không có dư nợ', p: p };
+    }
     if (p.pastMaturity) return { cls: 'red', text: 'Quá hạn ' + p.overdueDays + ' ngày', p: p };
     if (parseInt(l.debtGroup, 10) >= 2) return { cls: 'amber', text: 'Nhóm nợ ' + l.debtGroup, p: p };
     return { cls: 'green', text: 'Đang vay', p: p };
@@ -415,7 +422,10 @@
     } else if (mainDone) {
       h += '<p class="warn">Phần gốc của hợp đồng chính đã đến hạn hết. Còn nợ gốc quá hạn ở khoản liên quan: <b>' + money(relBal, cur) + '</b>.</p>';
     } else if (closed) {
-      h += '<p class="muted">Hợp đồng không còn dư nợ gốc – không phát sinh khoản phải trả.</p>';
+      var ilf = interestLeftOf(l);
+      if (odi && odi.days > 0) h += '<p class="warn">Không còn dư nợ gốc nhưng <b>vẫn còn nợ quá hạn ' + nf0.format(odi.days) + ' ngày</b> (lãi/lãi phạt) theo dữ liệu LD42 ngày ' + fdate(state.ld42.reportDate) + '.</p>';
+      else if (ilf > 0) h += '<p class="note-amber">Không còn dư nợ gốc nhưng <b>còn lãi chưa thu ' + money(ilf, cur) + '</b> (theo dữ liệu LD23 ngày ' + fdate(state.reportDate) + ').</p>';
+      else h += '<p class="muted">' + (l.principal > 0 ? 'Hợp đồng đã tất toán' : 'Hợp đồng không có dư nợ') + ' – không phát sinh khoản phải trả.</p>';
     } else if (p.pastMaturity) {
       h += '<p class="warn">Đã quá ngày đáo hạn ' + fdate(l.maturityDate) + ' (' + p.overdueDays + ' ngày) mà vẫn còn dư nợ gốc <b>' + money(l.balance, cur) + '</b>.</p>';
     } else {
@@ -426,7 +436,7 @@
       h += '<p class="muted">' + kindText + '. ' + (dueK ? 'Đã đến hạn <b>' + dueK.k + '</b>/' + dueK.n + ' kỳ (theo Gốc phải trả LD23) · Còn <b>' + (dueK.n - dueK.k) + '</b> kỳ. ' : 'Đã trả <b>' + p.paidPeriods + '</b> kỳ · Còn <b>' + p.remainingPeriods + '</b> kỳ (tổng ' + sch.rows.length + ' kỳ). ') +
         (kind === 'short' ? 'Mỗi tháng chỉ trả lãi, đến ' + fdate(l.maturityDate || sch.rows[sch.rows.length - 1].date) + ' trả thêm gốc <b>' + money(l.balance, cur) + '</b>.' : '') + '</p>';
     }
-    if (sch.rows.length && kind === 'amortizing') {
+    if (sch.rows.length && kind === 'amortizing' && !closed) {
       h += '<div class="seg" role="group" aria-label="Cách tính"><button type="button" data-method="equal" class="' + (state.method === 'equal' ? 'on' : '') + '">Gốc đều, lãi giảm dần</button>' +
         '<button type="button" data-method="annuity" class="' + (state.method === 'annuity' ? 'on' : '') + '">Tổng trả đều (niên kim)</button></div>';
     }
